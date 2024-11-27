@@ -31,12 +31,15 @@ public class NoOpCallStack implements CallStack {
      */
     public static final CallStack INSTANCE = new NoOpCallStack();
 
+    /**
+     * Constructs the singleton instance.
+     */
     private NoOpCallStack() {
     }
 
     @Override
-    public boolean printStackTrace(final PrintWriter writer) {
-        return false;
+    public void clear() {
+        // no-op
     }
 
     @Override
@@ -45,7 +48,7 @@ public class NoOpCallStack implements CallStack {
     }
 
     @Override
-    public void clear() {
-        // no-op
+    public boolean printStackTrace(final PrintWriter writer) {
+        return false;
     }
 }

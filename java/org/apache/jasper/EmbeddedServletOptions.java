@@ -14,17 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.jasper;
 
 import java.io.File;
 import java.util.Enumeration;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 
-import javax.servlet.ServletConfig;
-import javax.servlet.ServletContext;
-import javax.servlet.jsp.tagext.TagLibraryInfo;
+import jakarta.servlet.ServletConfig;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.jsp.tagext.TagLibraryInfo;
 
 import org.apache.jasper.compiler.JspConfig;
 import org.apache.jasper.compiler.Localizer;
@@ -113,13 +113,6 @@ public final class EmbeddedServletOptions implements Options {
     private File scratchDir;
 
     /**
-     * Need to have this as is for versions 4 and 5 of IE. Can be set from
-     * the initParams so if it changes in the future all that is needed is
-     * to have a jsp initParam of type ieClassId="<value>"
-     */
-    private String ieClassId = "clsid:8AD9C840-044E-11D1-B3E9-00805F499D93";
-
-    /**
      * What classpath should I use while compiling generated servlets?
      */
     private String classpath = null;
@@ -132,12 +125,12 @@ public final class EmbeddedServletOptions implements Options {
     /**
      * Compiler target VM.
      */
-    private String compilerTargetVM = "1.8";
+    private String compilerTargetVM = "21";
 
     /**
      * The compiler source VM.
      */
-    private String compilerSourceVM = "1.8";
+    private String compilerSourceVM = "21";
 
     /**
      * The compiler class name.
@@ -163,7 +156,7 @@ public final class EmbeddedServletOptions implements Options {
      * Java platform encoding to generate the JSP
      * page servlet.
      */
-    private String javaEncoding = "UTF8";
+    private String javaEncoding = "UTF-8";
 
     /**
      * Modification test interval.
@@ -211,6 +204,32 @@ public final class EmbeddedServletOptions implements Options {
      */
     private boolean quoteAttributeEL = true;
 
+    private String variableForExpressionFactory = "_el_expressionfactory";
+
+    private String variableForInstanceManager = "_jsp_instancemanager";
+
+    private boolean poolTagsWithExtends = false;
+
+    private boolean strictGetProperty = true;
+
+    private boolean strictWhitespace = true;
+
+    private String jspServletBase = "org.apache.jasper.runtime.HttpJspBase";
+
+    private String serviceMethodName = "_jspService";
+
+    private String servletClasspathAttribute = "org.apache.catalina.jsp_classpath";
+
+    private String jspPrecompilationQueryParameter = "jsp_precompile";
+
+    private String generatedJspPackageName = "org.apache.jsp";
+
+    private String generatedTagFilePackageName = "org.apache.jsp.tag";
+
+    private String tempVariableNamePrefix = "_jspx_temp";
+
+    private boolean useInstanceManagerForTags = false;
+
     public String getProperty(String name ) {
         return settings.getProperty( name );
     }
@@ -230,9 +249,6 @@ public final class EmbeddedServletOptions implements Options {
         return quoteAttributeEL;
     }
 
-    /**
-     * Are we keeping generated code around?
-     */
     @Override
     public boolean getKeepGenerated() {
         return keepGenerated;
@@ -248,138 +264,81 @@ public final class EmbeddedServletOptions implements Options {
         return isPoolingEnabled;
     }
 
-    /**
-     * Are we supporting HTML mapped servlets?
-     */
     @Override
     public boolean getMappedFile() {
         return mappedFile;
     }
 
-    /**
-     * Should class files be compiled with debug information?
-     */
     @Override
     public boolean getClassDebugInfo() {
         return classDebugInfo;
     }
 
-    /**
-     * Background JSP compile thread check interval
-     */
     @Override
     public int getCheckInterval() {
         return checkInterval;
     }
 
-    /**
-     * Modification test interval.
-     */
     @Override
     public int getModificationTestInterval() {
         return modificationTestInterval;
     }
 
-    /**
-     * Re-compile on failure.
-     */
     @Override
     public boolean getRecompileOnFail() {
         return recompileOnFail;
     }
 
-    /**
-     * Is Jasper being used in development mode?
-     */
     @Override
     public boolean getDevelopment() {
         return development;
     }
 
-    /**
-     * Is the generation of SMAP info for JSR45 debugging suppressed?
-     */
     @Override
     public boolean isSmapSuppressed() {
         return isSmapSuppressed;
     }
 
-    /**
-     * Should SMAP info for JSR45 debugging be dumped to a file?
-     */
     @Override
     public boolean isSmapDumped() {
         return isSmapDumped;
     }
 
-    /**
-     * Are Text strings to be generated as char arrays?
-     */
     @Override
     public boolean genStringAsCharArray() {
         return this.genStringAsCharArray;
     }
 
-    /**
-     * Class ID for use in the plugin tag when the browser is IE.
-     */
-    @Override
-    public String getIeClassId() {
-        return ieClassId;
-    }
-
-    /**
-     * What is my scratch dir?
-     */
     @Override
     public File getScratchDir() {
         return scratchDir;
     }
 
-    /**
-     * What classpath should I use while compiling the servlets
-     * generated from JSP files?
-     */
     @Override
     public String getClassPath() {
         return classpath;
     }
 
-    /**
-     * Is generation of X-Powered-By response header enabled/disabled?
-     */
     @Override
     public boolean isXpoweredBy() {
         return xpoweredBy;
     }
 
-    /**
-     * Compiler to use.
-     */
     @Override
     public String getCompiler() {
         return compiler;
     }
 
-    /**
-     * @see Options#getCompilerTargetVM
-     */
     @Override
     public String getCompilerTargetVM() {
         return compilerTargetVM;
     }
 
-    /**
-     * @see Options#getCompilerSourceVM
-     */
     @Override
     public String getCompilerSourceVM() {
         return compilerSourceVM;
     }
 
-    /**
-     * Java compiler class to use.
-     */
     @Override
     public String getCompilerClassName() {
         return compilerClassName;
@@ -433,28 +392,16 @@ public final class EmbeddedServletOptions implements Options {
         return null;
     }
 
-    /**
-     * Should we include a source fragment in exception messages, which could be displayed
-     * to the developer ?
-     */
     @Override
     public boolean getDisplaySourceFragment() {
         return displaySourceFragment;
     }
 
-    /**
-     * Should jsps be unloaded if to many are loaded?
-     * If set to a value greater than 0 eviction of jsps is started. Default: -1
-     */
     @Override
     public int getMaxLoadedJsps() {
         return maxLoadedJsps;
     }
 
-    /**
-     * Should any jsps be unloaded when being idle for this time in seconds?
-     * If set to a value greater than 0 eviction of jsps is started. Default: -1
-     */
     @Override
     public int getJspIdleTimeout() {
         return jspIdleTimeout;
@@ -463,6 +410,71 @@ public final class EmbeddedServletOptions implements Options {
     @Override
     public boolean getStrictQuoteEscaping() {
         return strictQuoteEscaping;
+    }
+
+    @Override
+    public String getVariableForExpressionFactory() {
+        return variableForExpressionFactory;
+    }
+
+    @Override
+    public String getVariableForInstanceManager() {
+        return variableForInstanceManager;
+    }
+
+    @Override
+    public boolean getPoolTagsWithExtends() {
+        return poolTagsWithExtends;
+    }
+
+    @Override
+    public boolean getStrictGetProperty() {
+        return strictGetProperty;
+    }
+
+    @Override
+    public boolean getStrictWhitespace() {
+        return strictWhitespace;
+    }
+
+    @Override
+    public String getJspServletBase() {
+        return jspServletBase;
+    }
+
+    @Override
+    public String getServiceMethodName() {
+        return serviceMethodName;
+    }
+
+    @Override
+    public String getServletClasspathAttribute() {
+        return servletClasspathAttribute;
+    }
+
+    @Override
+    public String getJspPrecompilationQueryParameter() {
+        return jspPrecompilationQueryParameter;
+    }
+
+    @Override
+    public String getGeneratedJspPackageName() {
+        return generatedJspPackageName;
+    }
+
+    @Override
+    public String getGeneratedTagFilePackageName() {
+        return generatedTagFilePackageName;
+    }
+
+    @Override
+    public String getTempVariableNamePrefix() {
+        return tempVariableNamePrefix;
+    }
+
+    @Override
+    public boolean getUseInstanceManagerForTags() {
+        return useInstanceManagerForTags;
     }
 
     /**
@@ -497,7 +509,7 @@ public final class EmbeddedServletOptions implements Options {
         String trimsp = config.getInitParameter("trimSpaces");
         if (trimsp != null) {
             try {
-                trimSpaces = TrimSpacesOption.valueOf(trimsp.toUpperCase());
+                trimSpaces = TrimSpacesOption.valueOf(trimsp.toUpperCase(Locale.ENGLISH));
             } catch (IllegalArgumentException iae) {
                 if (log.isWarnEnabled()) {
                     log.warn(Localizer.getMessage("jsp.warning.trimspaces"), iae);
@@ -643,44 +655,30 @@ public final class EmbeddedServletOptions implements Options {
             }
         }
 
-        String ieClassId = config.getInitParameter("ieClassId");
-        if (ieClassId != null)
-            this.ieClassId = ieClassId;
-
         String classpath = config.getInitParameter("classpath");
-        if (classpath != null)
+        if (classpath != null) {
             this.classpath = classpath;
+        }
 
         /*
          * scratchdir
          */
         String dir = config.getInitParameter("scratchdir");
-        if (dir != null && Constants.IS_SECURITY_ENABLED) {
-            log.info(Localizer.getMessage("jsp.info.ignoreSetting", "scratchdir", dir));
-            dir = null;
-        }
         if (dir != null) {
             scratchDir = new File(dir);
         } else {
-            // First try the Servlet 2.2 javax.servlet.context.tempdir property
             scratchDir = (File) context.getAttribute(ServletContext.TEMPDIR);
-            if (scratchDir == null) {
-                // Not running in a Servlet 2.2 container.
-                // Try to get the JDK 1.2 java.io.tmpdir property
-                dir = System.getProperty("java.io.tmpdir");
-                if (dir != null)
-                    scratchDir = new File(dir);
-            }
         }
-        if (this.scratchDir == null) {
+        if (scratchDir == null) {
             log.fatal(Localizer.getMessage("jsp.error.no.scratch.dir"));
             return;
         }
 
         if (!(scratchDir.exists() && scratchDir.canRead() &&
-                scratchDir.canWrite() && scratchDir.isDirectory()))
+                scratchDir.canWrite() && scratchDir.isDirectory())) {
             log.fatal(Localizer.getMessage("jsp.error.bad.scratch.dir",
                     scratchDir.getAbsolutePath()));
+        }
 
         this.compiler = config.getInitParameter("compiler");
 
@@ -787,6 +785,103 @@ public final class EmbeddedServletOptions implements Options {
             } else {
                 if (log.isWarnEnabled()) {
                     log.warn(Localizer.getMessage("jsp.warning.quoteAttributeEL"));
+                }
+            }
+        }
+
+        String variableForExpressionFactory = config.getInitParameter("variableForExpressionFactory");
+        if (variableForExpressionFactory != null) {
+            this.variableForExpressionFactory = variableForExpressionFactory;
+        }
+
+        String variableForInstanceManager = config.getInitParameter("variableForInstanceManager");
+        if (variableForInstanceManager != null) {
+            this.variableForInstanceManager = variableForInstanceManager;
+        }
+
+        String poolTagsWithExtends = config.getInitParameter("poolTagsWithExtends");
+        if (poolTagsWithExtends != null) {
+            if (poolTagsWithExtends.equalsIgnoreCase("true")) {
+                this.poolTagsWithExtends = true;
+            } else if (poolTagsWithExtends.equalsIgnoreCase("false")) {
+                this.poolTagsWithExtends = false;
+            } else {
+                if (log.isWarnEnabled()) {
+                    log.warn(Localizer.getMessage("jsp.warning.poolTagsWithExtends"));
+                }
+            }
+        }
+
+        String strictGetProperty = config.getInitParameter("strictGetProperty");
+        if (strictGetProperty != null) {
+            if (strictGetProperty.equalsIgnoreCase("true")) {
+                this.strictGetProperty = true;
+            } else if (strictGetProperty.equalsIgnoreCase("false")) {
+                this.strictGetProperty = false;
+            } else {
+                if (log.isWarnEnabled()) {
+                    log.warn(Localizer.getMessage("jsp.warning.strictGetProperty"));
+                }
+            }
+        }
+
+        String strictWhitespace = config.getInitParameter("strictWhitespace");
+        if (strictWhitespace != null) {
+            if (strictWhitespace.equalsIgnoreCase("true")) {
+                this.strictWhitespace = true;
+            } else if (strictWhitespace.equalsIgnoreCase("false")) {
+                this.strictWhitespace = false;
+            } else {
+                if (log.isWarnEnabled()) {
+                    log.warn(Localizer.getMessage("jsp.warning.strictWhitespace"));
+                }
+            }
+        }
+
+        String jspServletBase = config.getInitParameter("jspServletBase");
+        if (jspServletBase != null) {
+            this.jspServletBase = jspServletBase;
+        }
+
+        String serviceMethodName = config.getInitParameter("serviceMethodName");
+        if (serviceMethodName != null) {
+            this.serviceMethodName = serviceMethodName;
+        }
+
+        String servletClasspathAttribute = config.getInitParameter("servletClasspathAttribute");
+        if (servletClasspathAttribute != null) {
+            this.servletClasspathAttribute = servletClasspathAttribute;
+        }
+
+        String jspPrecompilationQueryParameter = config.getInitParameter("jspPrecompilationQueryParameter");
+        if (jspPrecompilationQueryParameter != null) {
+            this.jspPrecompilationQueryParameter = jspPrecompilationQueryParameter;
+        }
+
+        String generatedJspPackageName = config.getInitParameter("generatedJspPackageName");
+        if (generatedJspPackageName != null) {
+            this.generatedJspPackageName = generatedJspPackageName;
+        }
+
+        String generatedTagFilePackageName = config.getInitParameter("generatedTagFilePackageName");
+        if (generatedTagFilePackageName != null) {
+            this.generatedTagFilePackageName = generatedTagFilePackageName;
+        }
+
+        String tempVariableNamePrefix = config.getInitParameter("tempVariableNamePrefix");
+        if (tempVariableNamePrefix != null) {
+            this.tempVariableNamePrefix = tempVariableNamePrefix;
+        }
+
+        String useInstanceManagerForTags = config.getInitParameter("useInstanceManagerForTags");
+        if (useInstanceManagerForTags != null) {
+            if (useInstanceManagerForTags.equalsIgnoreCase("true")) {
+                this.useInstanceManagerForTags = true;
+            } else if (useInstanceManagerForTags.equalsIgnoreCase("false")) {
+                this.useInstanceManagerForTags = false;
+            } else {
+                if (log.isWarnEnabled()) {
+                    log.warn(Localizer.getMessage("jsp.warning.useInstanceManagerForTags"));
                 }
             }
         }

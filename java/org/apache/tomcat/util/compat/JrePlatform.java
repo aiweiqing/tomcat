@@ -16,13 +16,11 @@
  */
 package org.apache.tomcat.util.compat;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.util.Locale;
 
 public class JrePlatform {
 
     private static final String OS_NAME_PROPERTY = "os.name";
-    private static final String OS_NAME_WINDOWS_PREFIX = "Windows";
 
     static {
         /*
@@ -37,23 +35,15 @@ public class JrePlatform {
          */
 
         // This check is derived from the check in Apache Commons Lang
-        String osName;
-        if (System.getSecurityManager() == null) {
-            osName = System.getProperty(OS_NAME_PROPERTY);
-        } else {
-            osName = AccessController.doPrivileged(
-                    new PrivilegedAction<String>() {
+        String osName = System.getProperty(OS_NAME_PROPERTY);
 
-                    @Override
-                    public String run() {
-                        return System.getProperty(OS_NAME_PROPERTY);
-                    }
-                });
-        }
+        IS_MAC_OS = osName.toLowerCase(Locale.ENGLISH).startsWith("mac os x");
 
-        IS_WINDOWS = osName.startsWith(OS_NAME_WINDOWS_PREFIX);
+        IS_WINDOWS = osName.startsWith("Windows");
     }
 
+
+    public static final boolean IS_MAC_OS;
 
     public static final boolean IS_WINDOWS;
 }

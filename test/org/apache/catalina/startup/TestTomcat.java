@@ -21,16 +21,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -38,10 +43,14 @@ import org.junit.Test;
 import org.apache.catalina.Context;
 import org.apache.catalina.Host;
 import org.apache.catalina.LifecycleEvent;
+import org.apache.catalina.LifecycleException;
 import org.apache.catalina.LifecycleListener;
+import org.apache.catalina.authenticator.AuthenticatorBase;
+import org.apache.catalina.connector.Request;
 import org.apache.catalina.core.StandardContext;
 import org.apache.catalina.core.StandardHost;
 import org.apache.catalina.ha.context.ReplicatedContext;
+import org.apache.tomcat.util.MultiThrowable;
 import org.apache.tomcat.util.buf.ByteChunk;
 import org.apache.tomcat.util.descriptor.web.ContextEnvironment;
 import org.apache.tomcat.util.descriptor.web.ContextResourceLink;
@@ -182,7 +191,7 @@ public class TestTomcat extends TomcatBaseTest {
         Tomcat tomcat = getTomcatInstance();
 
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
 
         Tomcat.addServlet(ctx, "myServlet", new HelloWorld());
         ctx.addServletMappingDecoded("/", "myServlet");
@@ -233,7 +242,7 @@ public class TestTomcat extends TomcatBaseTest {
         Tomcat tomcat = getTomcatInstance();
 
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
 
         Tomcat.addServlet(ctx, "myServlet", new HelloWorldSession());
         ctx.addServletMappingDecoded("/", "myServlet");
@@ -263,7 +272,7 @@ public class TestTomcat extends TomcatBaseTest {
         Tomcat tomcat = getTomcatInstance();
 
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
 
         // Enable JNDI - it is disabled by default
         tomcat.enableNaming();
@@ -291,7 +300,7 @@ public class TestTomcat extends TomcatBaseTest {
         Tomcat tomcat = getTomcatInstance();
 
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
 
         // Enable JNDI - it is disabled by default
         tomcat.enableNaming();
@@ -370,7 +379,7 @@ public class TestTomcat extends TomcatBaseTest {
         Tomcat tomcat = getTomcatInstance();
 
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
 
         InitCount initCount = new InitCount();
         Tomcat.addServlet(ctx, "initCount", initCount);
@@ -553,5 +562,83 @@ public class TestTomcat extends TomcatBaseTest {
             // Hack via a static since we can't pass an instance in the test.
             used = true;
         }
+    }
+
+
+    @Test
+    public void testBrokenWarOne() throws Exception {
+        Tomcat tomcat = getTomcatInstance();
+
+        StandardContext ctx = (StandardContext) tomcat.addContext("/a", null);
+        ctx.addValve(new BrokenAuthenticator());
+
+        try {
+            tomcat.start();
+            Assert.fail();
+        } catch (Throwable t) {
+            assertThat(getRootCause(t), instanceOf(LifecycleException.class));
+        }
+    }
+
+
+    @Test
+    public void testBrokenWarTwo() throws Exception {
+        Tomcat tomcat = getTomcatInstance();
+
+        StandardContext ctxA = (StandardContext) tomcat.addContext("/a", null);
+        ctxA.addValve(new BrokenAuthenticator());
+        StandardContext ctxB = (StandardContext) tomcat.addContext("/b", null);
+        ctxB.addValve(new BrokenAuthenticator());
+
+        try {
+            tomcat.start();
+            Assert.fail();
+        } catch (Throwable t) {
+            assertThat(getRootCause(t), instanceOf(MultiThrowable.class));
+        }
+    }
+
+
+    private static Throwable getRootCause(Throwable t) {
+        while (t.getCause() != null && t.getCause() != t) {
+            t = t.getCause();
+        }
+        return t;
+    }
+
+
+    private static class BrokenAuthenticator extends AuthenticatorBase {
+
+        @Override
+        protected boolean doAuthenticate(Request request, HttpServletResponse response) throws IOException {
+            return false;
+        }
+
+        @Override
+        protected String getAuthMethod() {
+            return null;
+        }
+
+        @Override
+        protected synchronized void startInternal() throws LifecycleException {
+            throw new LifecycleException("Deliberately Broken");
+        }
+    }
+
+
+    @Test
+    public void testAddWebappUrl() throws Exception {
+        URL docBase = URI.create("jar:" + new File("test/deployment/context.jar").toURI().toString() + "!/context.war").toURL();
+
+        Tomcat tomcat = getTomcatInstance();
+        tomcat.addWebapp("", docBase);
+        tomcat.start();
+
+        ByteChunk bc = new ByteChunk();
+        int rc = getUrl("http://localhost:" + getPort() + "/", bc, null, null);
+
+        Assert.assertEquals(200, rc);
+        // Index page in sample is 100 bytes
+        Assert.assertEquals(100, bc.getLength());
     }
 }

@@ -21,12 +21,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 
-import javax.servlet.AsyncContext;
-import javax.servlet.RequestDispatcher;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -353,6 +353,20 @@ public class TestApplicationContextGetRequestDispatcher extends TomcatBaseTest {
     }
 
 
+    @Test
+    public void testGetRequestDispatcher47() throws Exception {
+        doTestGetRequestDispatcher(true, "/prefix/start", null, "aa+bb",
+                "/prefix/aa+bb", TargetServlet.OK);
+    }
+
+
+    @Test
+    public void testGetRequestDispatcher48() throws Exception {
+        doTestGetRequestDispatcher(false, "/prefix/start", null, "aa+bb",
+                "/prefix/aa+bb", TargetServlet.OK);
+    }
+
+
     private void doTestGetRequestDispatcher(boolean useEncodedDispatchPaths, String startPath,
             String startQueryString, String dispatchPath, String targetPath, String expectedBody)
             throws Exception {
@@ -361,12 +375,12 @@ public class TestApplicationContextGetRequestDispatcher extends TomcatBaseTest {
         Tomcat tomcat = getTomcatInstance();
 
         // No file system docBase required
-        Context ctx = tomcat.addContext("/test", null);
+        Context ctx = tomcat.addContext("/test\u6771\u4eac", null);
         ctx.setDispatchersUseEncodedPaths(useEncodedDispatchPaths);
 
         // Add a default servlet to return 404 for not found resources
         Tomcat.addServlet(ctx, "Default", new Default404Servlet());
-        ctx.addServletMappingDecoded("/*", "Default");
+        ctx.addServletMappingDecoded("/", "Default");
 
         // Add a target servlet to dispatch to
         Tomcat.addServlet(ctx, "target", new TargetServlet());
@@ -386,7 +400,7 @@ public class TestApplicationContextGetRequestDispatcher extends TomcatBaseTest {
 
         StringBuilder url = new StringBuilder("http://localhost:");
         url.append(getPort());
-        url.append("/test");
+        url.append("/test%E6%9D%B1%E4%BA%AC");
         url.append(startPath);
         if (startQueryString != null) {
             url.append('?');
@@ -400,7 +414,7 @@ public class TestApplicationContextGetRequestDispatcher extends TomcatBaseTest {
     }
 
 
-    private static class Default404Servlet extends HttpServlet {
+    static class Default404Servlet extends HttpServlet {
 
         private static final long serialVersionUID = 1L;
         private static final String DEFAULT_404 = "DEFAULT-404";
@@ -423,7 +437,7 @@ public class TestApplicationContextGetRequestDispatcher extends TomcatBaseTest {
 
         private final String dispatchPath;
 
-        public DispatcherServlet(String dispatchPath) {
+        DispatcherServlet(String dispatchPath) {
             this.dispatchPath = dispatchPath;
         }
 
@@ -453,7 +467,12 @@ public class TestApplicationContextGetRequestDispatcher extends TomcatBaseTest {
                 throws ServletException, IOException {
             resp.setContentType("text/plain");
             resp.setCharacterEncoding("UTF-8");
-            resp.getWriter().print(OK);
+            String contextPath = req.getContextPath();
+            if ("/test%E6%9D%B1%E4%BA%AC".equals(contextPath)) {
+                resp.getWriter().print(OK);
+            } else {
+                resp.getWriter().print("FAIL - ContextPath");
+            }
             String qs = req.getQueryString();
             if (qs != null) {
                 resp.getWriter().print(qs);
@@ -470,7 +489,7 @@ public class TestApplicationContextGetRequestDispatcher extends TomcatBaseTest {
         private final String dispatchPath;
         private final boolean encodePath;
 
-        public AsyncDispatcherServlet(String dispatchPath, boolean encodePath) {
+        AsyncDispatcherServlet(String dispatchPath, boolean encodePath) {
             this.dispatchPath = dispatchPath;
             this.encodePath = encodePath;
         }

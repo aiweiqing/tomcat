@@ -23,15 +23,16 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import javax.servlet.WriteListener;
+import jakarta.servlet.WriteListener;
 
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
-import org.apache.tomcat.util.buf.B2CConverter;
+import org.apache.tomcat.util.buf.CharsetHolder;
 import org.apache.tomcat.util.buf.MessageBytes;
 import org.apache.tomcat.util.http.MimeHeaders;
 import org.apache.tomcat.util.http.parser.MediaType;
@@ -50,8 +51,8 @@ import org.apache.tomcat.util.res.StringManager;
 public final class Response {
 
     private static final StringManager sm = StringManager.getManager(Response.class);
-
     private static final Log log = LogFactory.getLog(Response.class);
+
 
     // ----------------------------------------------------- Class Variables
 
@@ -98,7 +99,7 @@ public final class Response {
     /**
      * Committed flag.
      */
-    volatile boolean commited = false;
+    volatile boolean committed = false;
 
 
     /**
@@ -112,30 +113,24 @@ public final class Response {
      */
     String contentType = null;
     String contentLanguage = null;
-    Charset charset = null;
-    // Retain the original name used to set the charset so exactly that name is
-    // used in the ContentType header. Some (arguably non-specification
-    // compliant) user agents are very particular
-    String characterEncoding = null;
+    private CharsetHolder charsetHolder = CharsetHolder.EMPTY;
     long contentLength = -1;
     private Locale locale = DEFAULT_LOCALE;
 
-    // General informations
+    // General information
     private long contentWritten = 0;
-    private long commitTime = -1;
+    private long commitTimeNanos = -1;
 
     /**
-     * Holds request error exception.
+     * Holds response writing error exception.
      */
-    Exception errorException = null;
+    private Exception errorException = null;
 
     /**
-     * With the introduction of async processing and the possibility of
-     * non-container threads calling sendError() tracking the current error
-     * state and ensuring that the correct error page is called becomes more
-     * complicated. This state attribute helps by tracking the current error
-     * state and informing callers that attempt to change state if the change
-     * was successful or if another thread got there first.
+     * With the introduction of async processing and the possibility of non-container threads calling sendError()
+     * tracking the current error state and ensuring that the correct error page is called becomes more complicated.
+     * This state attribute helps by tracking the current error state and informing callers that attempt to change state
+     * if the change was successful or if another thread got there first.
      *
      * <pre>
      * The state machine is very simple:
@@ -169,8 +164,8 @@ public final class Response {
         return req;
     }
 
-    public void setRequest( Request req ) {
-        this.req=req;
+    public void setRequest(Request req) {
+        this.req = req;
     }
 
 
@@ -191,12 +186,12 @@ public final class Response {
 
     // -------------------- Per-Response "notes" --------------------
 
-    public final void setNote(int pos, Object value) {
+    public void setNote(int pos, Object value) {
         notes[pos] = value;
     }
 
 
-    public final Object getNote(int pos) {
+    public Object getNote(int pos) {
         return notes[pos];
     }
 
@@ -252,15 +247,15 @@ public final class Response {
 
 
     public boolean isCommitted() {
-        return commited;
+        return committed;
     }
 
 
     public void setCommitted(boolean v) {
-        if (v && !this.commited) {
-            this.commitTime = System.currentTimeMillis();
+        if (v && !this.committed) {
+            this.commitTimeNanos = System.nanoTime();
         }
-        this.commited = v;
+        this.committed = v;
     }
 
     /**
@@ -269,23 +264,34 @@ public final class Response {
      * @return the time the response was committed
      */
     public long getCommitTime() {
-        return commitTime;
+        return System.currentTimeMillis() - TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - commitTimeNanos);
+    }
+
+    /**
+     * Return the time the response was committed (based on System.nanoTime).
+     *
+     * @return the time the response was committed
+     */
+    public long getCommitTimeNanos() {
+        return commitTimeNanos;
     }
 
     // -----------------Error State --------------------
 
     /**
-     * Set the error Exception that occurred during request processing.
+     * Set the error Exception that occurred during the writing of the response processing.
      *
      * @param ex The exception that occurred
      */
     public void setErrorException(Exception ex) {
-        errorException = ex;
+        if (errorException == null) {
+            errorException = ex;
+        }
     }
 
 
     /**
-     * Get the Exception that occurred during request processing.
+     * Get the Exception that occurred during the writing of the response.
      *
      * @return The exception that occurred
      */
@@ -295,17 +301,15 @@ public final class Response {
 
 
     public boolean isExceptionPresent() {
-        return ( errorException != null );
+        return errorException != null;
     }
 
 
     /**
-     * Set the error flag.
-     *
-     * @return <code>false</code> if the error flag was already set
+     * Set the error flag if not already set.
      */
-    public boolean setError() {
-        return errorState.compareAndSet(0, 1);
+    public void setError() {
+        errorState.compareAndSet(0, 1);
     }
 
 
@@ -329,11 +333,16 @@ public final class Response {
     }
 
 
+    public void resetError() {
+        errorState.set(0);
+    }
+
+
     // -------------------- Methods --------------------
 
     public void reset() throws IllegalStateException {
 
-        if (commited) {
+        if (committed) {
             throw new IllegalStateException();
         }
 
@@ -343,10 +352,8 @@ public final class Response {
 
     // -------------------- Headers --------------------
     /**
-     * Does the response contain the given header.
-     * <br>
-     * Warning: This method always returns <code>false</code> for Content-Type
-     * and Content-Length.
+     * Does the response contain the given header. <br>
+     * Warning: This method always returns <code>false</code> for Content-Type and Content-Length.
      *
      * @param name The name of the header of interest
      *
@@ -358,12 +365,17 @@ public final class Response {
 
 
     public void setHeader(String name, String value) {
-        char cc=name.charAt(0);
-        if( cc=='C' || cc=='c' ) {
-            if( checkSpecialHeader(name, value) )
-            return;
+        char cc = name.charAt(0);
+        if (cc == 'C' || cc == 'c') {
+            if (checkSpecialHeader(name, value)) {
+                return;
+            }
         }
-        headers.setValue(name).setString( value);
+        if (value == null) {
+            headers.removeHeader(name);
+        } else {
+            headers.setValue(name).setString(value);
+        }
     }
 
 
@@ -373,10 +385,11 @@ public final class Response {
 
 
     public void addHeader(String name, String value, Charset charset) {
-        char cc=name.charAt(0);
-        if( cc=='C' || cc=='c' ) {
-            if( checkSpecialHeader(name, value) )
-            return;
+        char cc = name.charAt(0);
+        if (cc == 'C' || cc == 'c') {
+            if (checkSpecialHeader(name, value)) {
+                return;
+            }
         }
         MessageBytes mb = headers.addValue(name);
         if (charset != null) {
@@ -386,7 +399,7 @@ public final class Response {
     }
 
 
-    public void setTrailerFields(Supplier<Map<String, String>> supplier) {
+    public void setTrailerFields(Supplier<Map<String,String>> supplier) {
         AtomicBoolean trailerFieldsSupported = new AtomicBoolean(false);
         action(ActionCode.IS_TRAILER_FIELDS_SUPPORTED, trailerFieldsSupported);
         if (!trailerFieldsSupported.get()) {
@@ -397,31 +410,34 @@ public final class Response {
     }
 
 
-    public Supplier<Map<String, String>> getTrailerFields() {
+    public Supplier<Map<String,String>> getTrailerFields() {
         return trailerFieldsSupplier;
     }
 
 
     /**
-     * Set internal fields for special header names.
-     * Called from set/addHeader.
-     * Return true if the header is special, no need to set the header.
+     * Set internal fields for special header names. Called from set/addHeader. Return true if the header is special, no
+     * need to set the header.
      */
-    private boolean checkSpecialHeader( String name, String value) {
+    private boolean checkSpecialHeader(String name, String value) {
         // XXX Eliminate redundant fields !!!
         // ( both header and in special fields )
-        if( name.equalsIgnoreCase( "Content-Type" ) ) {
-            setContentType( value );
+        if (name.equalsIgnoreCase("Content-Type")) {
+            setContentType(value);
             return true;
         }
-        if( name.equalsIgnoreCase( "Content-Length" ) ) {
+        if (name.equalsIgnoreCase("Content-Length")) {
             try {
-                long cL=Long.parseLong( value );
-                setContentLength( cL );
+                if (value == null) {
+                    setContentLength(-1);
+                    return true;
+                }
+                long cL = Long.parseLong(value);
+                setContentLength(cL);
                 return true;
-            } catch( NumberFormatException ex ) {
+            } catch (NumberFormatException ex) {
                 // Do nothing - the spec doesn't have any "throws"
-                // and the user might know what he's doing
+                // and the user might know what they're doing
                 return false;
             }
         }
@@ -429,11 +445,10 @@ public final class Response {
     }
 
 
-    /** Signal that we're done with the headers, and body will follow.
-     *  Any implementation needs to notify ContextManager, to allow
-     *  interceptors to fix headers.
+    /**
+     * Signal that we're done with the headers, and body will follow.
      */
-    public void sendHeaders() {
+    public void commit() {
         action(ActionCode.COMMIT, this);
         setCommitted(true);
     }
@@ -447,15 +462,16 @@ public final class Response {
     }
 
     /**
-     * Called explicitly by user to set the Content-Language and the default
-     * encoding.
+     * Called explicitly by user to set the Content-Language and the default encoding.
      *
      * @param locale The locale to use for this response
      */
     public void setLocale(Locale locale) {
 
         if (locale == null) {
-            return;  // throw an exception?
+            this.locale = null;
+            this.contentLanguage = null;
+            return;
         }
 
         // Save the locale for use by getLocale()
@@ -468,8 +484,7 @@ public final class Response {
     /**
      * Return the content language.
      *
-     * @return The language code for the language currently associated with this
-     *         response
+     * @return The language code for the language currently associated with this response
      */
     public String getContentLanguage() {
         return contentLanguage;
@@ -477,43 +492,65 @@ public final class Response {
 
 
     /**
-     * Overrides the character encoding used in the body of the response. This
-     * method must be called prior to writing output using getWriter().
+     * Overrides the character encoding used in the body of the response. This method must be called prior to writing
+     * output using getWriter().
      *
      * @param characterEncoding The name of character encoding.
      *
-     * @throws UnsupportedEncodingException If the specified name is not
-     *         recognised
+     * @throws UnsupportedEncodingException If the specified name is not recognised
+     *
+     * @deprecated Unused. Will be removed in Tomcat 12.
      */
+    @Deprecated
     public void setCharacterEncoding(String characterEncoding) throws UnsupportedEncodingException {
         if (isCommitted()) {
             return;
         }
-        if (characterEncoding == null) {
-            return;
-        }
 
-        this.charset = B2CConverter.getCharset(characterEncoding);
-        this.characterEncoding = characterEncoding;
-    }
-
-
-    public Charset getCharset() {
-        return charset;
-    }
-
-
-    public String getCharacterEncoding() {
-        return characterEncoding;
+        charsetHolder = CharsetHolder.getInstance(characterEncoding);
+        charsetHolder.validate();
     }
 
 
     /**
-     * Sets the content type.
+     * Returns the current character set.
      *
-     * This method must preserve any response charset that may already have
-     * been set via a call to response.setContentType(), response.setLocale(),
-     * or response.setCharacterEncoding().
+     * @return The current character set
+     *
+     * @deprecated Unused. Will be removed in Tomcat 12.
+     */
+    @Deprecated
+    public Charset getCharset() {
+        return charsetHolder.getCharset();
+    }
+
+
+    /**
+     * Returns the name of the current encoding.
+     *
+     * @return The name of the current encoding
+     *
+     * @deprecated Unused. Will be removed in Tomcat 12.
+     */
+    @Deprecated
+    public String getCharacterEncoding() {
+        return charsetHolder.getName();
+    }
+
+
+    public CharsetHolder getCharsetHolder() {
+        return charsetHolder;
+    }
+
+
+    public void setCharsetHolder(CharsetHolder charsetHolder) {
+        this.charsetHolder = charsetHolder;
+    }
+
+
+    /**
+     * Sets the content type. This method must preserve any response charset that may already have been set via a call
+     * to response.setContentType(), response.setLocale(), or response.setCharacterEncoding().
      *
      * @param type the content type
      */
@@ -526,7 +563,7 @@ public final class Response {
 
         MediaType m = null;
         try {
-             m = MediaType.parseMediaType(new StringReader(type));
+            m = MediaType.parseMediaType(new StringReader(type));
         } catch (IOException e) {
             // Ignore - null test below handles this
         }
@@ -537,15 +574,21 @@ public final class Response {
             return;
         }
 
-        this.contentType = m.toStringNoCharset();
-
         String charsetValue = m.getCharset();
 
-        if (charsetValue != null) {
+        if (charsetValue == null) {
+            // No charset and we know value is valid as parser was successful
+            // Pass-through user provided value in case user-agent is buggy and
+            // requires specific format
+            this.contentType = type;
+        } else {
+            // There is a charset so have to rebuild content-type without it
+            this.contentType = m.toStringNoCharset();
             charsetValue = charsetValue.trim();
             if (charsetValue.length() > 0) {
+                charsetHolder = CharsetHolder.getInstance(charsetValue);
                 try {
-                    charset = B2CConverter.getCharset(charsetValue);
+                    charsetHolder.validate();
                 } catch (UnsupportedEncodingException e) {
                     log.warn(sm.getString("response.encoding.invalid", charsetValue), e);
                 }
@@ -560,10 +603,11 @@ public final class Response {
     public String getContentType() {
 
         String ret = contentType;
-
-        if (ret != null
-            && charset != null) {
-            ret = ret + ";charset=" + characterEncoding;
+        if (ret != null) {
+            String charsetName = charsetHolder.getName();
+            if (charsetName != null) {
+                ret = ret + ";charset=" + charsetName;
+            }
         }
 
         return ret;
@@ -607,32 +651,32 @@ public final class Response {
         contentType = null;
         contentLanguage = null;
         locale = DEFAULT_LOCALE;
-        charset = null;
-        characterEncoding = null;
+        charsetHolder = CharsetHolder.EMPTY;
         contentLength = -1;
         status = 200;
         message = null;
-        commited = false;
-        commitTime = -1;
+        committed = false;
+        commitTimeNanos = -1;
         errorException = null;
-        errorState.set(0);
-        headers.clear();
+        resetError();
+        headers.recycle();
         trailerFieldsSupplier = null;
         // Servlet 3.1 non-blocking write listener
         listener = null;
-        fireListener = false;
-        registeredForWrite = false;
+        synchronized (nonBlockingStateLock) {
+            fireListener = false;
+            registeredForWrite = false;
+        }
 
         // update counters
-        contentWritten=0;
+        contentWritten = 0;
     }
 
     /**
      * Bytes written by application - i.e. before compression, chunking, etc.
      *
-     * @return The total number of bytes written to the response by the
-     *         application. This will not be the number of bytes written to the
-     *         network which may be more or less than this value.
+     * @return The total number of bytes written to the response by the application. This will not be the number of
+     *             bytes written to the network which may be more or less than this value.
      */
     public long getContentWritten() {
         return contentWritten;
@@ -641,9 +685,8 @@ public final class Response {
     /**
      * Bytes written to socket - i.e. after compression, chunking, etc.
      *
-     * @param flush Should any remaining bytes be flushed before returning the
-     *              total? If {@code false} bytes remaining in the buffer will
-     *              not be included in the returned value
+     * @param flush Should any remaining bytes be flushed before returning the total? If {@code false} bytes remaining
+     *                  in the buffer will not be included in the returned value
      *
      * @return The total number of bytes written to the socket for this response
      */
@@ -655,35 +698,34 @@ public final class Response {
     }
 
     /*
-     * State for non-blocking output is maintained here as it is the one point
-     * easily reachable from the CoyoteOutputStream and the Processor which both
-     * need access to state.
+     * State for non-blocking output is maintained here as it is the one point easily reachable from the
+     * CoyoteOutputStream and the Processor which both need access to state.
      */
     volatile WriteListener listener;
+    // Ensures listener is only fired after a call is isReady()
     private boolean fireListener = false;
+    // Tracks write registration to prevent duplicate registrations
     private boolean registeredForWrite = false;
+    // Lock used to manage concurrent access to above flags
     private final Object nonBlockingStateLock = new Object();
 
     public WriteListener getWriteListener() {
         return listener;
-}
+    }
 
     public void setWriteListener(WriteListener listener) {
         if (listener == null) {
-            throw new NullPointerException(
-                    sm.getString("response.nullWriteListener"));
+            throw new NullPointerException(sm.getString("response.nullWriteListener"));
         }
         if (getWriteListener() != null) {
-            throw new IllegalStateException(
-                    sm.getString("response.writeListenerSet"));
+            throw new IllegalStateException(sm.getString("response.writeListenerSet"));
         }
         // Note: This class is not used for HTTP upgrade so only need to test
-        //       for async
+        // for async
         AtomicBoolean result = new AtomicBoolean(false);
         action(ActionCode.ASYNC_IS_ASYNC, result);
         if (!result.get()) {
-            throw new IllegalStateException(
-                    sm.getString("response.notAsync"));
+            throw new IllegalStateException(sm.getString("response.notAsync"));
         }
 
         this.listener = listener;
@@ -706,7 +748,7 @@ public final class Response {
                 fireListener = true;
             }
             action(ActionCode.DISPATCH_WRITE, null);
-            if (!ContainerThreadMarker.isContainerThread()) {
+            if (!req.isRequestThread()) {
                 // Not on a container thread so need to execute the dispatch
                 action(ActionCode.DISPATCH_EXECUTE, null);
             }
@@ -715,10 +757,7 @@ public final class Response {
 
     public boolean isReady() {
         if (listener == null) {
-            if (log.isDebugEnabled()) {
-                log.debug(sm.getString("response.notNonBlocking"));
-            }
-            return false;
+            return true;
         }
         // Assume write is not possible
         boolean ready = false;

@@ -14,25 +14,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.jasper.el;
 
+import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.el.ArrayELResolver;
-import javax.el.BeanELResolver;
-import javax.el.CompositeELResolver;
-import javax.el.ELContext;
-import javax.el.ELException;
-import javax.el.ELResolver;
-import javax.el.ListELResolver;
-import javax.el.MapELResolver;
-import javax.el.PropertyNotFoundException;
-import javax.el.ResourceBundleELResolver;
-import javax.el.StaticFieldELResolver;
-import javax.servlet.jsp.el.ImplicitObjectELResolver;
-import javax.servlet.jsp.el.ScopedAttributeELResolver;
+import jakarta.el.ArrayELResolver;
+import jakarta.el.BeanELResolver;
+import jakarta.el.CompositeELResolver;
+import jakarta.el.ELContext;
+import jakarta.el.ELException;
+import jakarta.el.ELResolver;
+import jakarta.el.ListELResolver;
+import jakarta.el.MapELResolver;
+import jakarta.el.PropertyNotFoundException;
+import jakarta.el.RecordELResolver;
+import jakarta.el.ResourceBundleELResolver;
+import jakarta.el.StaticFieldELResolver;
+import jakarta.servlet.jsp.el.ImplicitObjectELResolver;
+import jakarta.servlet.jsp.el.ImportELResolver;
+import jakarta.servlet.jsp.el.NotFoundELResolver;
+import jakarta.servlet.jsp.el.ScopedAttributeELResolver;
+
+import org.apache.jasper.runtime.ExceptionUtils;
+import org.apache.jasper.runtime.JspRuntimeLibrary;
 
 /**
  * Jasper-specific CompositeELResolver that optimizes certain functions to avoid
@@ -40,7 +47,8 @@ import javax.servlet.jsp.el.ScopedAttributeELResolver;
  */
 public class JasperELResolver extends CompositeELResolver {
 
-    private static final int STANDARD_RESOLVERS_COUNT = 9;
+    // Keep aligned with class under test
+    private static final int STANDARD_RESOLVERS_COUNT = 11;
 
     private AtomicInteger resolversSize = new AtomicInteger(0);
     private volatile ELResolver[] resolvers;
@@ -61,8 +69,14 @@ public class JasperELResolver extends CompositeELResolver {
         add(new ResourceBundleELResolver());
         add(new ListELResolver());
         add(new ArrayELResolver());
+        if (JspRuntimeLibrary.GRAAL) {
+            add(new GraalBeanELResolver());
+        }
+        add(new RecordELResolver());
         add(new BeanELResolver());
         add(new ScopedAttributeELResolver());
+        add(new ImportELResolver());
+        add(new NotFoundELResolver());
     }
 
     @Override
@@ -103,6 +117,9 @@ public class JasperELResolver extends CompositeELResolver {
             // skip stream, static and collection-based resolvers (map,
             // resource, list, array) and bean
             start = index + 7;
+            if (JspRuntimeLibrary.GRAAL) {
+                start++;
+            }
         } else {
             // skip implicit resolver only
             start = 1;
@@ -161,7 +178,7 @@ public class JasperELResolver extends CompositeELResolver {
     /*
      * Copied from org.apache.el.lang.ELSupport#coerceToString(ELContext,Object)
      */
-    private static final String coerceToString(final Object obj) {
+    private static String coerceToString(final Object obj) {
         if (obj == null) {
             return "";
         } else if (obj instanceof String) {
@@ -170,6 +187,118 @@ public class JasperELResolver extends CompositeELResolver {
             return ((Enum<?>) obj).name();
         } else {
             return obj.toString();
+        }
+    }
+
+    /**
+     * Extend ELResolver for Graal to avoid bean info use if possible,
+     * as BeanELResolver needs manual reflection configuration.
+     */
+    public static class GraalBeanELResolver extends ELResolver {
+
+        @Override
+        public Object getValue(ELContext context, Object base,
+                Object property) {
+            Objects.requireNonNull(context);
+            if (base == null || property == null) {
+                return null;
+            }
+            Object value = null;
+            Method method = getReadMethod(base.getClass(), property.toString());
+            if (method != null) {
+                context.setPropertyResolved(base, property);
+                try {
+                    method.setAccessible(true);
+                    value = method.invoke(base, (Object[]) null);
+                } catch (Exception ex) {
+                    Throwable thr = ExceptionUtils.unwrapInvocationTargetException(ex);
+                    ExceptionUtils.handleThrowable(thr);
+                }
+            }
+            return value;
+        }
+
+        @Override
+        public void setValue(ELContext context, Object base, Object property,
+                Object value) {
+            Objects.requireNonNull(context);
+            if (base == null || property == null) {
+                return;
+            }
+            Method method = getWriteMethod(base.getClass(), property.toString(), value.getClass());
+            if (method != null) {
+                context.setPropertyResolved(base, property);
+                try {
+                    method.invoke(base, value);
+                } catch (Exception ex) {
+                    Throwable thr = ExceptionUtils.unwrapInvocationTargetException(ex);
+                    ExceptionUtils.handleThrowable(thr);
+                }
+            }
+        }
+
+        @Override
+        public boolean isReadOnly(ELContext context, Object base,
+                Object property) {
+            Objects.requireNonNull(context);
+            if (base == null || property == null) {
+                return false;
+            }
+            Class<?> beanClass = base.getClass();
+            String prop = property.toString();
+            Method readMethod = getReadMethod(beanClass, prop);
+            return readMethod == null || !(getWriteMethod(beanClass, prop, readMethod.getReturnType()) != null);
+        }
+
+        private static Method getReadMethod(Class<?> beanClass, String prop) {
+            Method methods[] = beanClass.getMethods();
+            String isGetter = "is" + capitalize(prop);
+            String getter = "get" + capitalize(prop);
+            for (Method method : methods) {
+                if (method.getParameterCount() == 0) {
+                    if (isGetter.equals(method.getName()) && method.getReturnType().equals(boolean.class)) {
+                        return method;
+                    } else if (getter.equals(method.getName())) {
+                        return method;
+                    }
+                }
+            }
+            return null;
+        }
+
+        private static Method getWriteMethod(Class<?> beanClass, String prop, Class<?> valueClass) {
+            String setter = "set" + capitalize(prop);
+            Method methods[] = beanClass.getMethods();
+            for (Method method : methods) {
+                if (method.getParameterCount() == 1 && setter.equals(method.getName())
+                        && (valueClass == null || valueClass.isAssignableFrom(method.getParameterTypes()[0]))) {
+                    return method;
+                }
+            }
+            return null;
+        }
+
+        private static String capitalize(String name) {
+            if (name == null || name.length() == 0) {
+                return name;
+            }
+            char chars[] = name.toCharArray();
+            chars[0] = Character.toUpperCase(chars[0]);
+            return new String(chars);
+        }
+
+        @Override
+        public Class<?> getType(ELContext context, Object base,
+                Object property) {
+            return null;
+        }
+
+        @Override
+        public Class<?> getCommonPropertyType(ELContext context, Object base) {
+            if (base != null) {
+                return Object.class;
+            }
+            return null;
         }
     }
 }

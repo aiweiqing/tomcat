@@ -16,6 +16,7 @@
  */
 package org.apache.jasper.compiler;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -25,26 +26,27 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.servlet.jsp.tagext.FunctionInfo;
-import javax.servlet.jsp.tagext.PageData;
-import javax.servlet.jsp.tagext.TagAttributeInfo;
-import javax.servlet.jsp.tagext.TagExtraInfo;
-import javax.servlet.jsp.tagext.TagFileInfo;
-import javax.servlet.jsp.tagext.TagInfo;
-import javax.servlet.jsp.tagext.TagLibraryInfo;
-import javax.servlet.jsp.tagext.TagLibraryValidator;
-import javax.servlet.jsp.tagext.TagVariableInfo;
-import javax.servlet.jsp.tagext.ValidationMessage;
+import jakarta.servlet.jsp.tagext.FunctionInfo;
+import jakarta.servlet.jsp.tagext.PageData;
+import jakarta.servlet.jsp.tagext.TagAttributeInfo;
+import jakarta.servlet.jsp.tagext.TagExtraInfo;
+import jakarta.servlet.jsp.tagext.TagFileInfo;
+import jakarta.servlet.jsp.tagext.TagInfo;
+import jakarta.servlet.jsp.tagext.TagLibraryInfo;
+import jakarta.servlet.jsp.tagext.TagLibraryValidator;
+import jakarta.servlet.jsp.tagext.TagVariableInfo;
+import jakarta.servlet.jsp.tagext.ValidationMessage;
 
 import org.apache.jasper.JasperException;
 import org.apache.jasper.JspCompilationContext;
 import org.apache.tomcat.Jar;
+import org.apache.tomcat.util.buf.UriUtil;
 import org.apache.tomcat.util.descriptor.tld.TagFileXml;
 import org.apache.tomcat.util.descriptor.tld.TagXml;
 import org.apache.tomcat.util.descriptor.tld.TaglibXml;
@@ -106,7 +108,7 @@ class TagLibraryInfoImpl extends TagLibraryInfo implements TagConstants {
     }
 
 
-    public TagLibraryInfoImpl(JspCompilationContext ctxt, ParserController pc,
+    TagLibraryInfoImpl(JspCompilationContext ctxt, ParserController pc,
             PageInfo pi, String prefix, String uriIn,
             TldResourcePath tldResourcePath, ErrorDispatcher err)
             throws JasperException {
@@ -221,9 +223,9 @@ class TagLibraryInfoImpl extends TagLibraryInfo implements TagConstants {
                 err.jspError("jsp.error.tld.mandatory.element.missing", "jsp-version", uri);
             }
 
-            this.tags = tagInfos.toArray(new TagInfo[tagInfos.size()]);
-            this.tagFiles = tagFileInfos.toArray(new TagFileInfo[tagFileInfos.size()]);
-            this.functions = functionInfos.toArray(new FunctionInfo[functionInfos.size()]);
+            this.tags = tagInfos.toArray(new TagInfo[0]);
+            this.tagFiles = tagFileInfos.toArray(new TagFileInfo[0]);
+            this.functions = functionInfos.toArray(new FunctionInfo[0]);
         } catch (IOException ioe) {
             throw new JasperException(ioe);
         }
@@ -232,7 +234,7 @@ class TagLibraryInfoImpl extends TagLibraryInfo implements TagConstants {
     @Override
     public TagLibraryInfo[] getTagLibraryInfos() {
         Collection<TagLibraryInfo> coll = pi.getTaglibs();
-        return coll.toArray(new TagLibraryInfo[coll.size()]);
+        return coll.toArray(new TagLibraryInfo[0]);
     }
 
     /*
@@ -255,7 +257,7 @@ class TagLibraryInfoImpl extends TagLibraryInfo implements TagConstants {
             try {
                 // Can't use RequestUtils.normalize since that package is not
                 // available to Jasper.
-                uri = (new URI(uri)).normalize().toString();
+                uri = new URI(uri).normalize().toString();
                 if (uri.startsWith("../")) {
                     // Trying to go outside context root
                     err.jspError("jsp.error.taglibDirective.uriInvalid", uri);
@@ -268,6 +270,16 @@ class TagLibraryInfoImpl extends TagLibraryInfo implements TagConstants {
         URL url = null;
         try {
             url = ctxt.getResource(uri);
+            if (url == null) {
+                throw new FileNotFoundException();
+            }
+            /*
+             *  When the TLD cache is built for a TLD contained within a JAR within a WAR, the jar form of the URL is
+             *  used for any nested JAR.
+             */
+            if (url.getProtocol().equals("war") && uri.endsWith(".jar")) {
+                url = UriUtil.warToJar(url);
+            }
         } catch (Exception ex) {
             err.jspError("jsp.error.tld.unable_to_get_jar", uri, ex.toString());
         }
@@ -305,14 +317,15 @@ class TagLibraryInfoImpl extends TagLibraryInfo implements TagConstants {
                 tagXml.getInfo(),
                 this,
                 tei,
-                attributeInfos.toArray(new TagAttributeInfo[attributeInfos.size()]),
+                attributeInfos.toArray(new TagAttributeInfo[0]),
                 tagXml.getDisplayName(),
                 tagXml.getSmallIcon(),
                 tagXml.getLargeIcon(),
-                variableInfos.toArray(new TagVariableInfo[variableInfos.size()]),
+                variableInfos.toArray(new TagVariableInfo[0]),
                 tagXml.hasDynamicAttributes());
     }
 
+    @SuppressWarnings("null") // Impossible for path to be null at warning
     private TagFileInfo createTagFileInfo(TagFileXml tagFileXml, Jar jar) throws JasperException {
 
         String name = tagFileXml.getName();
@@ -323,6 +336,13 @@ class TagLibraryInfoImpl extends TagLibraryInfo implements TagConstants {
             err.jspError("jsp.error.tagfile.missingPath");
         } else if (!path.startsWith("/META-INF/tags") && !path.startsWith("/WEB-INF/tags")) {
             err.jspError("jsp.error.tagfile.illegalPath", path);
+        }
+
+        if (jar == null && path.startsWith("/META-INF/tags")) {
+            // This is a tag file that was packaged in a JAR that has been
+            // unpacked into /WEB-INF/classes (probably by an IDE). Adjust the
+            // path accordingly.
+            path = "/WEB-INF/classes" + path;
         }
 
         TagInfo tagInfo =
@@ -341,8 +361,7 @@ class TagLibraryInfoImpl extends TagLibraryInfo implements TagConstants {
             return null;
         }
 
-        Map<String,Object> initParams = new Hashtable<>();
-        initParams.putAll(validatorXml.getInitParams());
+        Map<String, Object> initParams = new HashMap<>(validatorXml.getInitParams());
 
         try {
             Class<?> tlvClass = ctxt.getClassLoader().loadClass(validatorClass);
@@ -356,7 +375,7 @@ class TagLibraryInfoImpl extends TagLibraryInfo implements TagConstants {
     }
 
     // *********************************************************************
-    // Until javax.servlet.jsp.tagext.TagLibraryInfo is fixed
+    // Until jakarta.servlet.jsp.tagext.TagLibraryInfo is fixed
 
     /**
      * The instance (if any) for the TagLibraryValidator class.
@@ -378,8 +397,9 @@ class TagLibraryInfoImpl extends TagLibraryInfo implements TagConstants {
      */
     public ValidationMessage[] validate(PageData thePage) {
         TagLibraryValidator tlv = getTagLibraryValidator();
-        if (tlv == null)
+        if (tlv == null) {
             return null;
+        }
 
         String uri = getURI();
         if (uri.startsWith("/")) {

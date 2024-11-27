@@ -29,9 +29,9 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 import org.apache.tomcat.Jar;
-import org.apache.tomcat.util.compat.JreCompat;
 
 /**
  * Implementation of {@link Jar} that is optimised for file based JAR URLs that
@@ -62,10 +62,19 @@ public class JarFileUrlJar implements Jar {
             } catch (URISyntaxException e) {
                 throw new IOException(e);
             }
-            jarFile = JreCompat.getInstance().jarFileNewInstance(f);
+            jarFile = new JarFile(f, true, ZipFile.OPEN_READ, Runtime.version());
             jarFileURL = url;
         }
-        multiRelease = JreCompat.getInstance().jarFileIsMultiRelease(jarFile);
+        boolean multiReleaseValue = false;
+        try {
+            multiReleaseValue = jarFile.isMultiRelease();
+        } catch (IllegalStateException e) {
+            // ISE can be thrown if the JAR URL is bad, for example:
+            // https://github.com/spring-projects/spring-boot/issues/33633
+            // The Javadoc does not document that ISE and given what it does for a vanilla IOE,
+            // this looks like a Java bug, it should return false instead.
+        }
+        multiRelease = multiReleaseValue;
     }
 
 
@@ -95,6 +104,13 @@ public class JarFileUrlJar implements Jar {
         } else {
             return entry.getTime();
         }
+    }
+
+    @Override
+    public boolean exists(String name) throws IOException {
+        // JarFile#getEntry() is multi-release aware
+        ZipEntry entry = jarFile.getEntry(name);
+        return entry != null;
     }
 
     @Override

@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.catalina.mbeans;
 
 
@@ -32,24 +31,28 @@ import org.apache.catalina.Lifecycle;
 import org.apache.catalina.LifecycleEvent;
 import org.apache.catalina.LifecycleListener;
 import org.apache.catalina.Role;
+import org.apache.catalina.Server;
 import org.apache.catalina.User;
 import org.apache.catalina.UserDatabase;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
-import org.apache.tomcat.util.modeler.Registry;
+import org.apache.tomcat.util.res.StringManager;
 
 
 /**
- * Implementation of <code>LifecycleListener</code> that instantiates the
- * set of MBeans associated with global JNDI resources that are subject to
- * management.
+ * Implementation of <code>LifecycleListener</code> that instantiates the set of MBeans associated with global JNDI
+ * resources that are subject to management.
+ * <p>
+ * This listener must only be nested within {@link Server} elements.
  *
  * @author Craig R. McClanahan
+ *
  * @since 4.1
  */
 public class GlobalResourcesLifecycleListener implements LifecycleListener {
 
     private static final Log log = LogFactory.getLog(GlobalResourcesLifecycleListener.class);
+    protected static final StringManager sm = StringManager.getManager(GlobalResourcesLifecycleListener.class);
 
 
     // ----------------------------------------------------- Instance Variables
@@ -58,12 +61,6 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
      * The owning Catalina component that we are attached to.
      */
     protected Lifecycle component = null;
-
-
-    /**
-     * The configuration information registry for our managed beans.
-     */
-    protected static final Registry registry = MBeanUtils.createRegistry();
 
 
     // ---------------------------------------------- LifecycleListener Methods
@@ -77,6 +74,9 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
     public void lifecycleEvent(LifecycleEvent event) {
 
         if (Lifecycle.START_EVENT.equals(event.getType())) {
+            if (!(event.getLifecycle() instanceof Server)) {
+                log.warn(sm.getString("listener.notServer", event.getLifecycle().getClass().getSimpleName()));
+            }
             component = event.getLifecycle();
             createMBeans();
         } else if (Lifecycle.STOP_EVENT.equals(event.getType())) {
@@ -97,7 +97,7 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
         try {
             context = (Context) (new InitialContext()).lookup("java:/");
         } catch (NamingException e) {
-            log.error("No global naming context defined for server");
+            log.error(sm.getString("globalResources.noNamingContext"));
             return;
         }
 
@@ -105,16 +105,15 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
         try {
             createMBeans("", context);
         } catch (NamingException e) {
-            log.error("Exception processing Global JNDI Resources", e);
+            log.error(sm.getString("globalResources.createError"), e);
         }
     }
 
 
     /**
-     * Create the MBeans for the interesting global JNDI resources in
-     * the specified naming context.
+     * Create the MBeans for the interesting global JNDI resources in the specified naming context.
      *
-     * @param prefix Prefix for complete object name paths
+     * @param prefix  Prefix for complete object name paths
      * @param context Context to be scanned
      *
      * @exception NamingException if a JNDI exception occurs
@@ -122,8 +121,7 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
     protected void createMBeans(String prefix, Context context) throws NamingException {
 
         if (log.isDebugEnabled()) {
-            log.debug("Creating MBeans for Global JNDI Resources in Context '" +
-                prefix + "'");
+            log.debug(sm.getString("globalResources.create", prefix));
         }
 
         try {
@@ -132,8 +130,8 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
                 Binding binding = bindings.next();
                 String name = prefix + binding.getName();
                 Object value = context.lookup(binding.getName());
-                if (log.isDebugEnabled()) {
-                    log.debug("Checking resource " + name);
+                if (log.isTraceEnabled()) {
+                    log.trace("Checking resource " + name);
                 }
                 if (value instanceof Context) {
                     createMBeans(name + "/", (Context) value);
@@ -141,14 +139,14 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
                     try {
                         createMBeans(name, (UserDatabase) value);
                     } catch (Exception e) {
-                        log.error("Exception creating UserDatabase MBeans for " + name, e);
+                        log.error(sm.getString("globalResources.userDatabaseCreateError", name), e);
                     }
                 }
             }
-        } catch( RuntimeException ex) {
-            log.error("RuntimeException " + ex);
-        } catch( OperationNotSupportedException ex) {
-            log.error("Operation not supported " + ex);
+        } catch (RuntimeException ex) {
+            log.error(sm.getString("globalResources.createError.runtime"), ex);
+        } catch (OperationNotSupportedException ex) {
+            log.error(sm.getString("globalResources.createError.operation"), ex);
         }
     }
 
@@ -156,7 +154,7 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
     /**
      * Create the MBeans for the specified UserDatabase and its contents.
      *
-     * @param name Complete resource name of this UserDatabase
+     * @param name     Complete resource name of this UserDatabase
      * @param database The UserDatabase to be processed
      *
      * @exception Exception if an exception occurs while creating MBeans
@@ -164,28 +162,33 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
     protected void createMBeans(String name, UserDatabase database) throws Exception {
 
         // Create the MBean for the UserDatabase itself
-        if (log.isDebugEnabled()) {
-            log.debug("Creating UserDatabase MBeans for resource " + name);
-            log.debug("Database=" + database);
+        if (log.isTraceEnabled()) {
+            log.trace("Creating UserDatabase MBeans for resource " + name);
+            log.trace("Database=" + database);
         }
         try {
             MBeanUtils.createMBean(database);
-        } catch(Exception e) {
-            throw new IllegalArgumentException(
-                    "Cannot create UserDatabase MBean for resource " + name, e);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(sm.getString("globalResources.createError.userDatabase", name), e);
+        }
+
+        if (database.isSparse()) {
+            // Avoid loading all the database as mbeans
+            return;
         }
 
         // Create the MBeans for each defined Role
         Iterator<Role> roles = database.getRoles();
         while (roles.hasNext()) {
             Role role = roles.next();
-            if (log.isDebugEnabled()) {
-                log.debug("  Creating Role MBean for role " + role);
+            if (log.isTraceEnabled()) {
+                log.trace("  Creating Role MBean for role " + role);
             }
             try {
                 MBeanUtils.createMBean(role);
             } catch (Exception e) {
-                throw new IllegalArgumentException("Cannot create Role MBean for role " + role, e);
+                throw new IllegalArgumentException(sm.getString("globalResources.createError.userDatabase.role", role),
+                        e);
             }
         }
 
@@ -193,14 +196,14 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
         Iterator<Group> groups = database.getGroups();
         while (groups.hasNext()) {
             Group group = groups.next();
-            if (log.isDebugEnabled()) {
-                log.debug("  Creating Group MBean for group " + group);
+            if (log.isTraceEnabled()) {
+                log.trace("  Creating Group MBean for group " + group);
             }
             try {
                 MBeanUtils.createMBean(group);
             } catch (Exception e) {
                 throw new IllegalArgumentException(
-                        "Cannot create Group MBean for group " + group, e);
+                        sm.getString("globalResources.createError.userDatabase.group", group), e);
             }
         }
 
@@ -208,14 +211,14 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
         Iterator<User> users = database.getUsers();
         while (users.hasNext()) {
             User user = users.next();
-            if (log.isDebugEnabled()) {
-                log.debug("  Creating User MBean for user " + user);
+            if (log.isTraceEnabled()) {
+                log.trace("  Creating User MBean for user " + user);
             }
             try {
                 MBeanUtils.createMBean(user);
             } catch (Exception e) {
-                throw new IllegalArgumentException(
-                        "Cannot create User MBean for user " + user, e);
+                throw new IllegalArgumentException(sm.getString("globalResources.createError.userDatabase.user", user),
+                        e);
             }
         }
     }
@@ -225,8 +228,8 @@ public class GlobalResourcesLifecycleListener implements LifecycleListener {
      * Destroy the MBeans for the interesting global JNDI resources.
      */
     protected void destroyMBeans() {
-        if (log.isDebugEnabled()) {
-            log.debug("Destroying MBeans for Global JNDI Resources");
+        if (log.isTraceEnabled()) {
+            log.trace("Destroying MBeans for Global JNDI Resources");
         }
     }
 }

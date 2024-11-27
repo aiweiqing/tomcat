@@ -41,16 +41,13 @@ public class EjbFactory extends FactoryBase {
 
         ObjectFactory factory;
         String javaxEjbFactoryClassName = System.getProperty(
-                "javax.ejb.Factory", Constants.OPENEJB_EJB_FACTORY);
+                "jakarta.ejb.Factory", Constants.OPENEJB_EJB_FACTORY);
         try {
             factory = (ObjectFactory)
                 Class.forName(javaxEjbFactoryClassName).getConstructor().newInstance();
         } catch(Throwable t) {
             if (t instanceof NamingException) {
                 throw (NamingException) t;
-            }
-            if (t instanceof ThreadDeath) {
-                throw (ThreadDeath) t;
             }
             if (t instanceof VirtualMachineError) {
                 throw (VirtualMachineError) t;

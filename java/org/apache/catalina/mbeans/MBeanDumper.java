@@ -31,6 +31,7 @@ import javax.management.openmbean.TabularData;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.util.ExceptionUtils;
+import org.apache.tomcat.util.res.StringManager;
 
 /**
  * General helper to dump MBean contents to the log.
@@ -38,6 +39,7 @@ import org.apache.tomcat.util.ExceptionUtils;
 public class MBeanDumper {
 
     private static final Log log = LogFactory.getLog(MBeanDumper.class);
+    protected static final StringManager sm = StringManager.getManager(MBeanDumper.class);
 
     private static final String CRLF = "\r\n";
 
@@ -46,7 +48,8 @@ public class MBeanDumper {
      * The following code to dump MBeans has been copied from JMXProxyServlet.
      *
      * @param mbeanServer the MBean server
-     * @param names a set of object names for which to dump the info
+     * @param names       a set of object names for which to dump the info
+     *
      * @return a string representation of the MBeans
      */
     public static String dumpBeans(MBeanServer mbeanServer, Set<ObjectName> names) {
@@ -71,13 +74,14 @@ public class MBeanDumper {
                 Object value = null;
 
                 for (MBeanAttributeInfo attr : attrs) {
-                    if (!attr.isReadable())
+                    if (!attr.isReadable()) {
                         continue;
+                    }
                     String attName = attr.getName();
-                    if ("modelerType".equals(attName))
+                    if ("modelerType".equals(attName)) {
                         continue;
-                    if (attName.indexOf('=') >= 0 || attName.indexOf(':') >= 0
-                            || attName.indexOf(' ') >= 0) {
+                    }
+                    if (attName.indexOf('=') >= 0 || attName.indexOf(':') >= 0 || attName.indexOf(' ') >= 0) {
                         continue;
                     }
 
@@ -87,19 +91,19 @@ public class MBeanDumper {
                         Throwable cause = rme.getCause();
                         if (cause instanceof UnsupportedOperationException) {
                             if (log.isDebugEnabled()) {
-                                log.debug("Error getting attribute " + oname + " " + attName, rme);
+                                log.debug(sm.getString("mBeanDumper.getAttributeError", attName, oname), rme);
                             }
                         } else if (cause instanceof NullPointerException) {
                             if (log.isDebugEnabled()) {
-                                log.debug("Error getting attribute " + oname + " " + attName, rme);
+                                log.debug(sm.getString("mBeanDumper.getAttributeError", attName, oname), rme);
                             }
                         } else {
-                            log.error("Error getting attribute " + oname + " " + attName, rme);
+                            log.error(sm.getString("mBeanDumper.getAttributeError", attName, oname), rme);
                         }
                         continue;
                     } catch (Throwable t) {
                         ExceptionUtils.handleThrowable(t);
-                        log.error("Error getting attribute " + oname + " " + attName, t);
+                        log.error(sm.getString("mBeanDumper.getAttributeError", attName, oname), t);
                         continue;
                     }
                     if (value == null) {
@@ -110,8 +114,8 @@ public class MBeanDumper {
                         Class<?> c = value.getClass();
                         if (c.isArray()) {
                             int len = Array.getLength(value);
-                            StringBuilder sb = new StringBuilder("Array["
-                                    + c.getComponentType().getName() + "] of length " + len);
+                            StringBuilder sb =
+                                    new StringBuilder("Array[" + c.getComponentType().getName() + "] of length " + len);
                             if (len > 0) {
                                 sb.append(CRLF);
                             }
@@ -126,9 +130,8 @@ public class MBeanDumper {
                         } else if (TabularData.class.isInstance(value)) {
                             TabularData tab = TabularData.class.cast(value);
                             StringJoiner joiner = new StringJoiner(CRLF);
-                            joiner.add(
-                                    "TabularData[" + tab.getTabularType().getRowType().getTypeName()
-                                            + "] of length " + tab.size());
+                            joiner.add("TabularData[" + tab.getTabularType().getRowType().getTypeName() +
+                                    "] of length " + tab.size());
                             for (Object item : tab.values()) {
                                 joiner.add(tableItemToString(item));
                             }
@@ -157,7 +160,7 @@ public class MBeanDumper {
         // The only invalid char is \n
         // We also need to keep the string short and split it with \nSPACE
         // XXX TODO
-        int idx = value.indexOf("\n");
+        int idx = value.indexOf('\n');
         if (idx < 0) {
             return value;
         }
@@ -168,8 +171,9 @@ public class MBeanDumper {
             appendHead(sb, value, prev, idx);
             sb.append("\\n\n ");
             prev = idx + 1;
-            if (idx == value.length() - 1)
+            if (idx == value.length() - 1) {
                 break;
+            }
             idx = value.indexOf('\n', idx + 1);
         }
         if (prev < value.length()) {
@@ -216,10 +220,10 @@ public class MBeanDumper {
             CompositeData composite = CompositeData.class.cast(value);
             Set<String> keys = composite.getCompositeType().keySet();
             for (String key : keys) {
-                sb.append(sep).append(key).append("=").append(composite.get(key));
+                sb.append(sep).append(key).append('=').append(composite.get(key));
                 sep = ", ";
             }
-            sb.append("}");
+            sb.append('}');
             valueString = sb.toString();
         } else {
             valueString = value.toString();

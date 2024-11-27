@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.management.DynamicMBean;
+import javax.management.InstanceNotFoundException;
 import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanInfo;
 import javax.management.MBeanOperationInfo;
@@ -39,16 +40,7 @@ import javax.management.ObjectName;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.util.modeler.modules.ModelerSource;
-
-/*
-   Issues:
-   - exceptions - too many "throws Exception"
-   - double check the interfaces
-   - start removing the use of the experimental methods in tomcat, then remove
-     the methods ( before 1.1 final )
-   - is the security enough to prevent Registry being used to avoid the
-     permission checks in the mbean server ?
-*/
+import org.apache.tomcat.util.res.StringManager;
 
 /**
  * Registry for modeler MBeans.
@@ -57,9 +49,6 @@ import org.apache.tomcat.util.modeler.modules.ModelerSource;
  * manipulate model mbeans and simplify their use.
  *
  * This class is itself an mbean.
- *
- * IMPORTANT: public methods not marked with @since x.x are experimental or
- * internal. Should not be used.
  *
  * @author Craig R. McClanahan
  * @author Costin Manolache
@@ -70,13 +59,9 @@ public class Registry implements RegistryMBean, MBeanRegistration {
      * The Log instance to which we will write our log messages.
      */
     private static final Log log = LogFactory.getLog(Registry.class);
+    private static final StringManager sm = StringManager.getManager(Registry.class);
 
     // Support for the factory methods
-
-    /**
-     * Will be used to isolate different apps and enhance security.
-     */
-    private static final HashMap<Object, Registry> perLoaderRegistries = null;
 
     /**
      * The registry instance created by our factory method the first time it is
@@ -117,7 +102,7 @@ public class Registry implements RegistryMBean, MBeanRegistration {
 
     // ----------------------------------------------------------- Constructors
 
-    public Registry() {
+    protected Registry() {
         super();
     }
 
@@ -129,45 +114,30 @@ public class Registry implements RegistryMBean, MBeanRegistration {
      * Factory method to create (if necessary) and return our
      * <code>Registry</code> instance.
      *
-     * The current version uses a static - future versions could use the thread
-     * class loader.
-     *
-     * @param key Support for application isolation. If null, the context class
-     *            loader will be used ( if setUseContextClassLoader is called )
-     *            or the default registry is returned.
+     * @param key Unused
      * @param guard Prevent access to the registry by untrusted components
+     *
      * @return the registry
      * @since 1.1
      */
     public static synchronized Registry getRegistry(Object key, Object guard) {
-        Registry localRegistry;
-        if (perLoaderRegistries != null) {
-            if (key == null)
-                key = Thread.currentThread().getContextClassLoader();
-            if (key != null) {
-                localRegistry = perLoaderRegistries.get(key);
-                if (localRegistry == null) {
-                    localRegistry = new Registry();
-                    // localRegistry.key=key;
-                    localRegistry.guard = guard;
-                    perLoaderRegistries.put(key, localRegistry);
-                    return localRegistry;
-                }
-                if (localRegistry.guard != null && localRegistry.guard != guard) {
-                    return null; // XXX Should I throw a permission ex ?
-                }
-                return localRegistry;
-            }
-        }
-
-        // static
         if (registry == null) {
             registry = new Registry();
+            registry.guard = guard;
         }
         if (registry.guard != null && registry.guard != guard) {
             return null;
         }
         return registry;
+    }
+
+
+    public static synchronized void disableRegistry() {
+        if (registry == null) {
+            registry = new NoDescriptorRegistry();
+        } else if (!(registry instanceof NoDescriptorRegistry)) {
+            log.warn(sm.getString("registry.noDisable"));
+        }
     }
 
 
@@ -237,7 +207,7 @@ public class Registry implements RegistryMBean, MBeanRegistration {
         try {
             unregisterComponent(new ObjectName(oname));
         } catch (MalformedObjectNameException e) {
-            log.info("Error creating object name " + e);
+            log.info(sm.getString("registry.objectNameCreateError"), e);
         }
     }
 
@@ -247,8 +217,8 @@ public class Registry implements RegistryMBean, MBeanRegistration {
      * lifecycle operations.
      *
      * @param mbeans list of ObjectName on which we'll invoke the operations
-     * @param operation Name of the operation ( init, start, stop, etc)
-     * @param failFirst If false, exceptions will be ignored
+     * @param operation  Name of the operation ( init, start, stop, etc)
+     * @param failFirst  If false, exceptions will be ignored
      * @throws Exception Error invoking operation
      * @since 1.1
      */
@@ -270,13 +240,13 @@ public class Registry implements RegistryMBean, MBeanRegistration {
                 getMBeanServer().invoke(current, operation, new Object[] {}, new String[] {});
 
             } catch (Exception t) {
-                if (failFirst)
+                if (failFirst) {
                     throw t;
-                log.info("Error initializing " + current + " " + t.toString());
+                }
+                log.info(sm.getString("registry.initError"), t);
             }
         }
     }
-
 
     // -------------------- ID registry --------------------
 
@@ -286,7 +256,7 @@ public class Registry implements RegistryMBean, MBeanRegistration {
      *
      * @param domain Namespace
      * @param name Type of the notification
-     * @return An unique id for the domain:name combination
+     * @return A unique id for the domain:name combination
      * @since 1.1
      */
     @Override
@@ -294,11 +264,7 @@ public class Registry implements RegistryMBean, MBeanRegistration {
         if (domain == null) {
             domain = "";
         }
-        Hashtable<String, Integer> domainTable = idDomains.get(domain);
-        if (domainTable == null) {
-            domainTable = new Hashtable<>();
-            idDomains.put(domain, domainTable);
-        }
+        Hashtable<String, Integer> domainTable = idDomains.computeIfAbsent(domain, k -> new Hashtable<>());
         if (name == null) {
             name = "";
         }
@@ -308,11 +274,7 @@ public class Registry implements RegistryMBean, MBeanRegistration {
             return i.intValue();
         }
 
-        int id[] = ids.get(domain);
-        if (id == null) {
-            id = new int[1];
-            ids.put(domain, id);
-        }
+        int[] id = ids.computeIfAbsent(domain, k -> new int[1]);
         int code = id[0]++;
         domainTable.put(name, Integer.valueOf(code));
         return code;
@@ -350,8 +312,9 @@ public class Registry implements RegistryMBean, MBeanRegistration {
     public ManagedBean findManagedBean(String name) {
         // XXX Group ?? Use Group + Type
         ManagedBean mb = descriptors.get(name);
-        if (mb == null)
+        if (mb == null) {
             mb = descriptorsByClass.get(name);
+        }
         return mb;
     }
 
@@ -372,14 +335,14 @@ public class Registry implements RegistryMBean, MBeanRegistration {
         try {
             info = getMBeanServer().getMBeanInfo(oname);
         } catch (Exception e) {
-            log.info("Can't find metadata for object" + oname);
+            log.info(sm.getString("registry.noMetadata", oname));
             return null;
         }
 
         MBeanAttributeInfo attInfo[] = info.getAttributes();
-        for (int i = 0; i < attInfo.length; i++) {
-            if (attName.equals(attInfo[i].getName())) {
-                type = attInfo[i].getType();
+        for (MBeanAttributeInfo mBeanAttributeInfo : attInfo) {
+            if (attName.equals(mBeanAttributeInfo.getName())) {
+                type = mBeanAttributeInfo.getType();
                 return type;
             }
         }
@@ -399,18 +362,48 @@ public class Registry implements RegistryMBean, MBeanRegistration {
         try {
             info = getMBeanServer().getMBeanInfo(oname);
         } catch (Exception e) {
-            log.info("Can't find metadata " + oname);
+            log.info(sm.getString("registry.noMetadata", oname));
             return null;
         }
         MBeanOperationInfo attInfo[] = info.getOperations();
-        for (int i = 0; i < attInfo.length; i++) {
-            if (opName.equals(attInfo[i].getName())) {
-                return attInfo[i];
+        for (MBeanOperationInfo mBeanOperationInfo : attInfo) {
+            if (opName.equals(mBeanOperationInfo.getName())) {
+                return mBeanOperationInfo;
             }
         }
         return null;
     }
 
+    /**
+     * Find the operation info for a method.
+     *
+     * @param oname The bean name
+     * @param opName The operation name
+     * @param argCount The number of arguments to the method
+     * @return the operation info for the specified operation
+     * @throws InstanceNotFoundException If the object name is not bound to an MBean
+     */
+    public MBeanOperationInfo getMethodInfo(ObjectName oname, String opName, int argCount)
+        throws InstanceNotFoundException
+    {
+        MBeanInfo info = null;
+        try {
+            info = getMBeanServer().getMBeanInfo(oname);
+        } catch (InstanceNotFoundException infe) {
+            throw infe;
+        } catch (Exception e) {
+            log.warn(sm.getString("registry.noMetadata", oname), e);
+            return null;
+        }
+        MBeanOperationInfo attInfo[] = info.getOperations();
+        for (MBeanOperationInfo mBeanOperationInfo : attInfo) {
+            if (opName.equals(mBeanOperationInfo.getName())
+                    && argCount == mBeanOperationInfo.getSignature().length) {
+                return mBeanOperationInfo;
+            }
+        }
+        return null;
+    }
 
     /**
      * Unregister a component. This is just a helper that avoids exceptions by
@@ -424,7 +417,7 @@ public class Registry implements RegistryMBean, MBeanRegistration {
                 getMBeanServer().unregisterMBean(oname);
             }
         } catch (Throwable t) {
-            log.error("Error unregistering mbean", t);
+            log.error(sm.getString("registry.unregisterError"), t);
         }
     }
 
@@ -439,16 +432,15 @@ public class Registry implements RegistryMBean, MBeanRegistration {
         if (server == null) {
             synchronized (serverLock) {
                 if (server == null) {
-                    long t1 = System.currentTimeMillis();
                     if (MBeanServerFactory.findMBeanServer(null).size() > 0) {
                         server = MBeanServerFactory.findMBeanServer(null).get(0);
                         if (log.isDebugEnabled()) {
-                            log.debug("Using existing MBeanServer " + (System.currentTimeMillis() - t1));
+                            log.debug(sm.getString("registry.existingServer"));
                         }
                     } else {
                         server = ManagementFactory.getPlatformMBeanServer();
                         if (log.isDebugEnabled()) {
-                            log.debug("Creating MBeanServer" + (System.currentTimeMillis() - t1));
+                            log.debug(sm.getString("registry.createdServer"));
                         }
                     }
                 }
@@ -484,8 +476,8 @@ public class Registry implements RegistryMBean, MBeanRegistration {
         // Search for a descriptor in the same package
         if (managed == null) {
             // check package and parent packages
-            if (log.isDebugEnabled()) {
-                log.debug("Looking for descriptor ");
+            if (log.isTraceEnabled()) {
+                log.trace("Looking for descriptor ");
             }
             findDescriptor(beanClass, type);
 
@@ -494,8 +486,8 @@ public class Registry implements RegistryMBean, MBeanRegistration {
 
         // Still not found - use introspection
         if (managed == null) {
-            if (log.isDebugEnabled()) {
-                log.debug("Introspecting ");
+            if (log.isTraceEnabled()) {
+                log.trace("Introspecting ");
             }
 
             // introspection
@@ -503,7 +495,7 @@ public class Registry implements RegistryMBean, MBeanRegistration {
 
             managed = findManagedBean(type);
             if (managed == null) {
-                log.warn("No metadata found for " + type);
+                log.warn(sm.getString("registry.noTypeMetadata", type));
                 return null;
             }
             managed.setName(type);
@@ -514,7 +506,7 @@ public class Registry implements RegistryMBean, MBeanRegistration {
 
 
     /**
-     * EXPERIMENTAL Convert a string to object, based on type. Used by several
+     * Convert a string to object, based on type. Used by several
      * components. We could provide some pluggability. It is here to keep things
      * consistent and avoid duplication in other tasks
      *
@@ -546,7 +538,7 @@ public class Registry implements RegistryMBean, MBeanRegistration {
 
 
     /**
-     * Experimental. Load descriptors.
+     * Load descriptors.
      *
      * @param sourceType The source type
      * @param source The bean
@@ -587,6 +579,8 @@ public class Registry implements RegistryMBean, MBeanRegistration {
             if (sourceType == null) {
                 sourceType = "MbeansDescriptorsIntrospectionSource";
             }
+        } else {
+            throw new IllegalArgumentException(sm.getString("registry.invalidSource"));
         }
 
         if (sourceType == null) {
@@ -608,12 +602,12 @@ public class Registry implements RegistryMBean, MBeanRegistration {
      * @throws Exception Error registering component
      */
     public void registerComponent(Object bean, ObjectName oname, String type) throws Exception {
-        if (log.isDebugEnabled()) {
-            log.debug("Managed= " + oname);
+        if (log.isTraceEnabled()) {
+            log.trace("Managed= " + oname);
         }
 
         if (bean == null) {
-            log.error("Null component " + oname);
+            log.error(sm.getString("registry.nullBean", oname));
             return;
         }
 
@@ -629,14 +623,14 @@ public class Registry implements RegistryMBean, MBeanRegistration {
 
             if (getMBeanServer().isRegistered(oname)) {
                 if (log.isDebugEnabled()) {
-                    log.debug("Unregistering existing component " + oname);
+                    log.debug(sm.getString("registry.unregisterExisting", oname));
                 }
                 getMBeanServer().unregisterMBean(oname);
             }
 
             getMBeanServer().registerMBean(mbean, oname);
         } catch (Exception ex) {
-            log.error("Error registering " + oname, ex);
+            log.error(sm.getString("registry.registerError", oname), ex);
             throw ex;
         }
     }
@@ -667,12 +661,14 @@ public class Registry implements RegistryMBean, MBeanRegistration {
             return;
         }
 
-        log.debug("Found " + dURL);
+        if (log.isTraceEnabled()) {
+            log.trace("Found " + dURL);
+        }
         searchedPaths.put(packageName, dURL);
         try {
             load("MbeansDescriptorsDigesterSource", dURL, null);
         } catch (Exception ex) {
-            log.error("Error loading " + dURL);
+            log.error(sm.getString("registry.loadError", dURL));
         }
     }
 
@@ -698,10 +694,11 @@ public class Registry implements RegistryMBean, MBeanRegistration {
 
         String className = type;
         String pkg = className;
-        while (pkg.indexOf(".") > 0) {
-            int lastComp = pkg.lastIndexOf(".");
-            if (lastComp <= 0)
+        while (pkg.indexOf('.') > 0) {
+            int lastComp = pkg.lastIndexOf('.');
+            if (lastComp <= 0) {
                 return;
+            }
             pkg = pkg.substring(0, lastComp);
             if (searchedPaths.get(pkg) != null) {
                 return;
@@ -712,8 +709,9 @@ public class Registry implements RegistryMBean, MBeanRegistration {
 
 
     private ModelerSource getModelerSource(String type) throws Exception {
-        if (type == null)
+        if (type == null) {
             type = "MbeansDescriptorsDigesterSource";
+        }
         if (!type.contains(".")) {
             type = "org.apache.tomcat.util.modeler.modules." + type;
         }

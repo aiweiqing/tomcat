@@ -14,8 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
 package org.apache.jasper.tagplugins.jstl.core;
 
 import org.apache.jasper.compiler.tagplugin.TagPlugin;
@@ -162,9 +160,6 @@ public class Set implements TagPlugin {
             ctxt.generateJavaSource("        } catch (java.beans.IntrospectionException ex) {");
             ctxt.generateJavaSource("            throw new JspException(ex);");
             ctxt.generateJavaSource("        } catch (java.lang.reflect.InvocationTargetException ex) {");
-            ctxt.generateJavaSource("            if (ex.getCause() instanceof ThreadDeath) {");
-            ctxt.generateJavaSource("                throw (ThreadDeath) ex.getCause();");
-            ctxt.generateJavaSource("            }");
             ctxt.generateJavaSource("            if (ex.getCause() instanceof VirtualMachineError) {");
             ctxt.generateJavaSource("                throw (VirtualMachineError) ex.getCause();");
             ctxt.generateJavaSource("            }");

@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import javax.servlet.ServletContext;
+import jakarta.servlet.ServletContext;
 
 import org.apache.jasper.Constants;
 import org.apache.jasper.JasperException;
@@ -154,7 +154,7 @@ public class TldCache {
         private volatile long webAppPathLastModified;
         private volatile long entryLastModified;
 
-        public TaglibXmlCacheEntry(TaglibXml taglibXml, long webAppPathLastModified,
+        TaglibXmlCacheEntry(TaglibXml taglibXml, long webAppPathLastModified,
                 long entryLastModified) {
             this.taglibXml = taglibXml;
             this.webAppPathLastModified = webAppPathLastModified;

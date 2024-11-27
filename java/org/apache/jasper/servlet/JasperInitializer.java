@@ -19,16 +19,15 @@ package org.apache.jasper.servlet;
 import java.io.IOException;
 import java.util.Set;
 
-import javax.servlet.ServletContainerInitializer;
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
-import javax.servlet.jsp.JspFactory;
+import jakarta.servlet.ServletContainerInitializer;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.jsp.JspFactory;
 
 import org.apache.jasper.Constants;
 import org.apache.jasper.compiler.Localizer;
 import org.apache.jasper.compiler.TldCache;
 import org.apache.jasper.runtime.JspFactoryImpl;
-import org.apache.jasper.security.SecurityClassLoad;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.InstanceManager;
@@ -43,13 +42,12 @@ public class JasperInitializer implements ServletContainerInitializer {
     private static final String MSG = "org.apache.jasper.servlet.JasperInitializer";
     private final Log log = LogFactory.getLog(JasperInitializer.class); // must not be static
 
-    /**
+    /*
      * Preload classes required at runtime by a JSP servlet so that
      * we don't get a defineClassInPackage security exception.
      */
     static {
         JspFactoryImpl factory = new JspFactoryImpl();
-        SecurityClassLoad.securityClassLoad(factory.getClass().getClassLoader());
         if (JspFactory.getDefaultFactory() == null) {
             JspFactory.setDefaultFactory(factory);
         }
@@ -93,6 +91,21 @@ public class JasperInitializer implements ServletContainerInitializer {
         context.setAttribute(TldCache.SERVLET_CONTEXT_ATTRIBUTE_NAME,
                 new TldCache(context, scanner.getUriTldResourcePathMap(),
                         scanner.getTldResourcePathTaglibXmlMap()));
+
+        String poolSizeValue = context.getInitParameter(Constants.JSP_FACTORY_POOL_SIZE_INIT_PARAM);
+        int poolSize = 8;
+        if (poolSizeValue != null) {
+            try {
+                poolSize = Integer.parseInt(poolSizeValue);
+            } catch (NumberFormatException e) {
+                throw new ServletException(e);
+            }
+        }
+        JspFactory factory = JspFactory.getDefaultFactory();
+        if (factory instanceof JspFactoryImpl) {
+            ((JspFactoryImpl) factory).setPoolSize(poolSize);
+        }
+
     }
 
     protected TldScanner newTldScanner(ServletContext context, boolean namespaceAware,

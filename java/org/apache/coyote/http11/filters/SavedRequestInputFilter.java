@@ -14,7 +14,6 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
 package org.apache.coyote.http11.filters;
 
 import java.io.IOException;
@@ -26,8 +25,7 @@ import org.apache.tomcat.util.buf.ByteChunk;
 import org.apache.tomcat.util.net.ApplicationBufferHandler;
 
 /**
- * Input filter responsible for replaying the request body when restoring the
- * saved request after FORM authentication.
+ * Input filter responsible for replaying the request body when restoring the saved request after FORM authentication.
  */
 public class SavedRequestInputFilter implements InputFilter {
 
@@ -47,34 +45,32 @@ public class SavedRequestInputFilter implements InputFilter {
 
     @Override
     public int doRead(ApplicationBufferHandler handler) throws IOException {
-        if(input.getOffset()>= input.getEnd())
+        if (input.getStart() >= input.getEnd()) {
             return -1;
+        }
 
         ByteBuffer byteBuffer = handler.getByteBuffer();
         byteBuffer.position(byteBuffer.limit()).limit(byteBuffer.capacity());
-        input.substract(byteBuffer);
+        input.subtract(byteBuffer);
 
         return byteBuffer.remaining();
     }
 
     /**
-     * Set the content length on the request.
+     * {@inheritDoc} Set the content length on the request.
      */
     @Override
     public void setRequest(org.apache.coyote.Request request) {
         request.setContentLength(input.getLength());
     }
 
-    /**
-     * Make the filter ready to process the next request.
-     */
     @Override
     public void recycle() {
         input = null;
     }
 
     /**
-     * Return the name of the associated encoding; here, the value is null.
+     * @return null
      */
     @Override
     public ByteChunk getEncodingName() {
@@ -83,15 +79,14 @@ public class SavedRequestInputFilter implements InputFilter {
 
     /**
      * Set the next buffer in the filter pipeline (has no effect).
+     *
+     * @param buffer ignored
      */
     @Override
     public void setBuffer(InputBuffer buffer) {
         // NOOP since this filter will be providing the request body
     }
 
-    /**
-     * Amount of bytes still available in a buffer.
-     */
     @Override
     public int available() {
         return input.getLength();
@@ -99,6 +94,8 @@ public class SavedRequestInputFilter implements InputFilter {
 
     /**
      * End the current request (has no effect).
+     *
+     * @return 0
      */
     @Override
     public long end() throws IOException {
@@ -107,6 +104,6 @@ public class SavedRequestInputFilter implements InputFilter {
 
     @Override
     public boolean isFinished() {
-        return input.getOffset() >= input.getEnd();
+        return input.getStart() >= input.getEnd();
     }
 }

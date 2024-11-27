@@ -31,9 +31,9 @@ import org.apache.tomcat.util.modeler.Registry;
 import org.apache.tomcat.util.res.StringManager;
 
 /**
- * Loads and registers a StoreConfig MBean with the name
- * <i>Catalina:type=StoreConfig</i>. This listener should only be used with a
- * {@link Server}.
+ * Loads and registers a StoreConfig MBean with the name <i>Catalina:type=StoreConfig</i>.
+ * <p>
+ * This listener must only be nested within {@link Server} elements.
  */
 public class StoreConfigLifecycleListener implements LifecycleListener {
 
@@ -64,7 +64,8 @@ public class StoreConfigLifecycleListener implements LifecycleListener {
             if (event.getSource() instanceof Server) {
                 createMBean((Server) event.getSource());
             } else {
-                log.warn(sm.getString("storeConfigListener.notServer"));
+                log.warn(
+                        sm.getString("storeConfigListener.notServer", event.getLifecycle().getClass().getSimpleName()));
             }
         } else if (Lifecycle.AFTER_STOP_EVENT.equals(event.getType())) {
             if (oname != null) {
@@ -72,38 +73,32 @@ public class StoreConfigLifecycleListener implements LifecycleListener {
                 oname = null;
             }
         }
-     }
+    }
 
     /**
-     * Create StoreConfig MBean and load StoreRegistry MBeans name is
-     * <code>Catalina:type=StoreConfig</code>.
+     * Create StoreConfig MBean and load StoreRegistry MBeans name is <code>Catalina:type=StoreConfig</code>.
+     *
      * @param server The Server instance
      */
     protected void createMBean(Server server) {
         StoreLoader loader = new StoreLoader();
         try {
-            Class<?> clazz = Class.forName(getStoreConfigClass(), true, this
-                    .getClass().getClassLoader());
+            Class<?> clazz = Class.forName(getStoreConfigClass(), true, this.getClass().getClassLoader());
             storeConfig = (IStoreConfig) clazz.getConstructor().newInstance();
-            if (null == getStoreRegistry())
-                // default Loading
-                loader.load();
-            else
-                // load a special file registry (url)
-                loader.load(getStoreRegistry());
+            loader.load(getStoreRegistry());
             // use the loader Registry
             storeConfig.setRegistry(loader.getRegistry());
             storeConfig.setServer(server);
         } catch (Exception e) {
-            log.error("createMBean load", e);
+            log.error(sm.getString("storeConfigListener.loadError"), e);
             return;
         }
         try {
             // Note: Hard-coded domain used since this object is per Server/JVM
-            oname = new ObjectName("Catalina:type=StoreConfig" );
+            oname = new ObjectName("Catalina:type=StoreConfig");
             registry.registerComponent(storeConfig, oname, "StoreConfig");
         } catch (Exception ex) {
-            log.error("createMBean register MBean", ex);
+            log.error(sm.getString("storeConfigListener.registerError"), ex);
         }
     }
 
@@ -111,7 +106,9 @@ public class StoreConfigLifecycleListener implements LifecycleListener {
      * Create a ManagedBean (StoreConfig).
      *
      * @param object The object to manage
+     *
      * @return an MBean wrapping the object
+     *
      * @throws Exception if an error occurred
      */
     protected DynamicMBean getManagedBean(Object object) throws Exception {
@@ -127,8 +124,7 @@ public class StoreConfigLifecycleListener implements LifecycleListener {
     }
 
     /**
-     * @param storeConfig
-     *            The storeConfig to set.
+     * @param storeConfig The storeConfig to set.
      */
     public void setStoreConfig(IStoreConfig storeConfig) {
         this.storeConfig = storeConfig;
@@ -142,8 +138,7 @@ public class StoreConfigLifecycleListener implements LifecycleListener {
     }
 
     /**
-     * @param storeConfigClass
-     *            The storeConfigClass to set.
+     * @param storeConfigClass The storeConfigClass to set.
      */
     public void setStoreConfigClass(String storeConfigClass) {
         this.storeConfigClass = storeConfigClass;
@@ -157,8 +152,7 @@ public class StoreConfigLifecycleListener implements LifecycleListener {
     }
 
     /**
-     * @param storeRegistry
-     *            The storeRegistry to set.
+     * @param storeRegistry The storeRegistry to set.
      */
     public void setStoreRegistry(String storeRegistry) {
         this.storeRegistry = storeRegistry;

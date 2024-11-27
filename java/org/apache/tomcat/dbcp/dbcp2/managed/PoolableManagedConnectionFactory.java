@@ -14,10 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.tomcat.dbcp.dbcp2.managed;
 
 import java.sql.Connection;
+import java.sql.SQLException;
+import java.time.Duration;
 
 import javax.management.ObjectName;
 
@@ -57,13 +58,21 @@ public class PoolableManagedConnectionFactory extends PoolableConnectionFactory 
     }
 
     /**
+     * @return The transaction registry.
+     * @since 2.6.0
+     */
+    public TransactionRegistry getTransactionRegistry() {
+        return transactionRegistry;
+    }
+
+    /**
      * Uses the configured XAConnectionFactory to create a {@link PoolableManagedConnection}. Throws
-     * <code>IllegalStateException</code> if the connection factory returns null. Also initializes the connection using
+     * {@code IllegalStateException} if the connection factory returns null. Also initializes the connection using
      * configured initialization SQL (if provided) and sets up a prepared statement pool associated with the
      * PoolableManagedConnection if statement pooling is enabled.
      */
     @Override
-    public synchronized PooledObject<PoolableConnection> makeObject() throws Exception {
+    public synchronized PooledObject<PoolableConnection> makeObject() throws SQLException {
         Connection conn = getConnectionFactory().createConnection();
         if (conn == null) {
             throw new IllegalStateException("Connection factory returned null from createConnection");
@@ -74,7 +83,7 @@ public class PoolableManagedConnectionFactory extends PoolableConnectionFactory 
             final GenericKeyedObjectPoolConfig<DelegatingPreparedStatement> config = new GenericKeyedObjectPoolConfig<>();
             config.setMaxTotalPerKey(-1);
             config.setBlockWhenExhausted(false);
-            config.setMaxWaitMillis(0);
+            config.setMaxWait(Duration.ZERO);
             config.setMaxIdlePerKey(1);
             config.setMaxTotal(getMaxOpenPreparedStatements());
             final ObjectName dataSourceJmxName = getDataSourceJmxName();
@@ -82,7 +91,7 @@ public class PoolableManagedConnectionFactory extends PoolableConnectionFactory 
             if (dataSourceJmxName != null) {
                 final StringBuilder base = new StringBuilder(dataSourceJmxName.toString());
                 base.append(Constants.JMX_CONNECTION_BASE_EXT);
-                base.append(Long.toString(connIndex));
+                base.append(connIndex);
                 config.setJmxNameBase(base.toString());
                 config.setJmxNamePrefix(Constants.JMX_STATEMENT_POOL_PREFIX);
             } else {

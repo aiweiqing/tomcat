@@ -23,18 +23,23 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.sql.Timestamp;
 
+import org.apache.catalina.Globals;
+import org.apache.tomcat.util.res.StringManager;
+
 /**
  * Move server.xml or context.xml as backup
- *
+ * <p>
  * TODO Get Encoding from Registry
  */
 public class StoreFileMover {
+
+    protected static final StringManager sm = StringManager.getManager(Constants.Package);
 
     private String filename = "conf/server.xml";
 
     private String encoding = "UTF-8";
 
-    private String basename = System.getProperty("catalina.base");
+    private String basename = System.getProperty(Globals.CATALINA_BASE_PROP);
 
     private File configOld;
 
@@ -71,8 +76,7 @@ public class StoreFileMover {
     }
 
     /**
-     * @param basename
-     *            The basename to set.
+     * @param basename The basename to set.
      */
     public void setBasename(String basename) {
         this.basename = basename;
@@ -108,6 +112,7 @@ public class StoreFileMover {
 
     /**
      * Calculate file objects for the old and new configuration files.
+     *
      * @param basename The base path
      * @param encoding The encoding of the file
      * @param filename The file name
@@ -141,14 +146,18 @@ public class StoreFileMover {
         }
         if (!configNew.getParentFile().exists()) {
             if (!configNew.getParentFile().mkdirs()) {
-                throw new IllegalStateException("Cannot create directory " + configNew);
+                throw new IllegalStateException(sm.getString("storeFileMover.directoryCreationError", configNew));
             }
         }
         String sb = getTimeTag();
-        configSave = new File(configFile + sb);
-        if (!configSave.isAbsolute()) {
-            configSave = new File(getBasename(), configFile + sb);
-        }
+        int i = 0;
+        do {
+            configSave = new File(configFile + sb + "-" + String.valueOf(i));
+            if (!configSave.isAbsolute()) {
+                configSave = new File(getBasename(), configFile + sb + "-" + String.valueOf(i));
+            }
+            i++;
+        } while (configSave.exists());
     }
 
     /**
@@ -160,21 +169,18 @@ public class StoreFileMover {
         if (configOld.renameTo(configSave)) {
             if (!configNew.renameTo(configOld)) {
                 configSave.renameTo(configOld);
-                throw new IOException("Cannot rename "
-                        + configNew.getAbsolutePath() + " to "
-                        + configOld.getAbsolutePath());
+                throw new IOException(sm.getString("storeFileMover.renameError", configNew.getAbsolutePath(),
+                        configOld.getAbsolutePath()));
             }
         } else {
             if (!configOld.exists()) {
                 if (!configNew.renameTo(configOld)) {
-                    throw new IOException("Cannot move "
-                            + configNew.getAbsolutePath() + " to "
-                            + configOld.getAbsolutePath());
+                    throw new IOException(sm.getString("storeFileMover.renameError", configNew.getAbsolutePath(),
+                            configOld.getAbsolutePath()));
                 }
             } else {
-                throw new IOException("Cannot rename "
-                    + configOld.getAbsolutePath() + " to "
-                    + configSave.getAbsolutePath());
+                throw new IOException(sm.getString("storeFileMover.renameError", configOld.getAbsolutePath(),
+                        configSave.getAbsolutePath()));
             }
         }
     }
@@ -183,11 +189,11 @@ public class StoreFileMover {
      * Open an output writer for the new configuration file.
      *
      * @return The writer
+     *
      * @throws IOException Failed opening a writer to the new file
      */
     public PrintWriter getWriter() throws IOException {
-        return new PrintWriter(new OutputStreamWriter(
-                new FileOutputStream(configNew), getEncoding()));
+        return new PrintWriter(new OutputStreamWriter(new FileOutputStream(configNew), getEncoding()));
     }
 
     /**
@@ -197,16 +203,16 @@ public class StoreFileMover {
      */
     protected String getTimeTag() {
         String ts = (new Timestamp(System.currentTimeMillis())).toString();
-        //        yyyy-mm-dd hh:mm:ss
-        //        0123456789012345678
-        StringBuffer sb = new StringBuffer(".");
-        sb.append(ts.substring(0, 10));
+        // yyyy-mm-dd hh:mm:ss
+        // 0123456789012345678
+        StringBuilder sb = new StringBuilder(".");
+        sb.append(ts, 0, 10);
         sb.append('.');
-        sb.append(ts.substring(11, 13));
+        sb.append(ts, 11, 13);
         sb.append('-');
-        sb.append(ts.substring(14, 16));
+        sb.append(ts, 14, 16);
         sb.append('-');
-        sb.append(ts.substring(17, 19));
+        sb.append(ts, 17, 19);
         return sb.toString();
     }
 

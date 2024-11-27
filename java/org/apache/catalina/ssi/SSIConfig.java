@@ -18,6 +18,9 @@ package org.apache.catalina.ssi;
 
 
 import java.io.PrintWriter;
+
+import org.apache.tomcat.util.res.StringManager;
+
 /**
  * Implements the Server-side #exec command
  *
@@ -27,17 +30,15 @@ import java.io.PrintWriter;
  * @author David Becker
  */
 public final class SSIConfig implements SSICommand {
-    /**
-     * @see SSICommand
-     */
+    private static final StringManager sm = StringManager.getManager(SSIConfig.class);
+
     @Override
-    public long process(SSIMediator ssiMediator, String commandName,
-            String[] paramNames, String[] paramValues, PrintWriter writer) {
+    public long process(SSIMediator ssiMediator, String commandName, String[] paramNames, String[] paramValues,
+            PrintWriter writer) {
         for (int i = 0; i < paramNames.length; i++) {
             String paramName = paramNames[i];
             String paramValue = paramValues[i];
-            String substitutedValue = ssiMediator
-                    .substituteVariables(paramValue);
+            String substitutedValue = ssiMediator.substituteVariables(paramValue);
             if (paramName.equalsIgnoreCase("errmsg")) {
                 ssiMediator.setConfigErrMsg(substitutedValue);
             } else if (paramName.equalsIgnoreCase("sizefmt")) {
@@ -45,10 +46,8 @@ public final class SSIConfig implements SSICommand {
             } else if (paramName.equalsIgnoreCase("timefmt")) {
                 ssiMediator.setConfigTimeFmt(substitutedValue);
             } else {
-                ssiMediator.log("#config--Invalid attribute: " + paramName);
-                //We need to fetch this value each time, since it may change
-                // during the
-                // loop
+                ssiMediator.log(sm.getString("ssiCommand.invalidAttribute", paramName));
+                // We need to fetch this value each time, since it may change during the loop
                 String configErrMsg = ssiMediator.getConfigErrMsg();
                 writer.write(configErrMsg);
             }

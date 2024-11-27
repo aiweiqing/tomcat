@@ -72,6 +72,7 @@ public class TestRegistration extends TomcatBaseTest {
             "Tomcat:type=Server",
             "Tomcat:type=Service",
             "Tomcat:type=StringCache",
+            "Tomcat:type=UtilityExecutor",
             "Tomcat:type=Valve,name=StandardEngineValve",
         };
     }
@@ -134,6 +135,8 @@ public class TestRegistration extends TomcatBaseTest {
                 + ObjectName.quote(ADDRESS),
         "Tomcat:type=ThreadPool,name="
                 + ObjectName.quote("http-" + type + "-" + ADDRESS + "-" + port),
+        "Tomcat:type=SocketProperties,name="
+                + ObjectName.quote("http-" + type + "-" + ADDRESS + "-" + port),
         };
     }
 
@@ -186,8 +189,6 @@ public class TestRegistration extends TomcatBaseTest {
         String protocol = tomcat.getConnector().getProtocolHandlerClassName();
         if (protocol.indexOf("Nio2") > 0) {
             protocol = "nio2";
-        } else if (protocol.indexOf("Apr") > 0) {
-            protocol = "apr";
         } else {
             protocol = "nio";
         }
@@ -209,6 +210,11 @@ public class TestRegistration extends TomcatBaseTest {
         List<String> additional = found;
         additional.removeAll(expected);
         Assert.assertTrue("Unexpected Tomcat MBeans: " + additional, additional.isEmpty());
+
+        // Check a known attribute
+        String connectorName = Arrays.asList(connectorMBeanNames("auto-" + index, protocol)).get(0);
+        // This should normally return "http", but any non null non exception is good enough
+        Assert.assertNotNull(mbeanServer.getAttribute(new ObjectName(connectorName), "scheme"));
 
         tomcat.stop();
 

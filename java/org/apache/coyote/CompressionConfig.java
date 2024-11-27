@@ -16,16 +16,29 @@
  */
 package org.apache.coyote;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.regex.Pattern;
 
+import org.apache.juli.logging.Log;
+import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.util.buf.MessageBytes;
 import org.apache.tomcat.util.http.MimeHeaders;
 import org.apache.tomcat.util.http.ResponseUtil;
+import org.apache.tomcat.util.http.parser.AcceptEncoding;
+import org.apache.tomcat.util.http.parser.TokenList;
+import org.apache.tomcat.util.res.StringManager;
 
 public class CompressionConfig {
+
+    private static final Log log = LogFactory.getLog(CompressionConfig.class);
+    private static final StringManager sm = StringManager.getManager(CompressionConfig.class);
 
     private int compressionLevel = 0;
     private Pattern noCompressionUserAgents = null;
@@ -38,9 +51,8 @@ public class CompressionConfig {
     /**
      * Set compression level.
      *
-     * @param compression One of <code>on</code>, <code>force</code>,
-     *                    <code>off</code> or the minimum compression size in
-     *                    bytes which implies <code>on</code>
+     * @param compression One of <code>on</code>, <code>force</code>, <code>off</code> or the minimum compression size
+     *                        in bytes which implies <code>on</code>
      */
     public void setCompression(String compression) {
         if (compression.equals("on")) {
@@ -69,12 +81,12 @@ public class CompressionConfig {
      */
     public String getCompression() {
         switch (compressionLevel) {
-        case 0:
-            return "off";
-        case 1:
-            return "on";
-        case 2:
-            return "force";
+            case 0:
+                return "off";
+            case 1:
+                return "on";
+            case 2:
+                return "force";
         }
         return "off";
     }
@@ -86,8 +98,7 @@ public class CompressionConfig {
 
 
     /**
-     * Obtain the String form of the regular expression that defines the user
-     * agents to not use gzip with.
+     * Obtain the String form of the regular expression that defines the user agents to not use gzip with.
      *
      * @return The regular expression as a String
      */
@@ -106,19 +117,17 @@ public class CompressionConfig {
 
 
     /**
-     * Set no compression user agent pattern. Regular expression as supported
-     * by {@link Pattern}. e.g.: <code>gorilla|desesplorer|tigrus</code>.
+     * Set no compression user agent pattern. Regular expression as supported by {@link Pattern}. e.g.:
+     * <code>gorilla|desesplorer|tigrus</code>.
      *
-     * @param noCompressionUserAgents The regular expression for user agent
-     *                                strings for which compression should not
-     *                                be applied
+     * @param noCompressionUserAgents The regular expression for user agent strings for which compression should not be
+     *                                    applied
      */
     public void setNoCompressionUserAgents(String noCompressionUserAgents) {
         if (noCompressionUserAgents == null || noCompressionUserAgents.length() == 0) {
             this.noCompressionUserAgents = null;
         } else {
-            this.noCompressionUserAgents =
-                Pattern.compile(noCompressionUserAgents);
+            this.noCompressionUserAgents = Pattern.compile(noCompressionUserAgents);
         }
     }
 
@@ -147,7 +156,7 @@ public class CompressionConfig {
                 values.add(token);
             }
         }
-        result = values.toArray(new String[values.size()]);
+        result = values.toArray(new String[0]);
         compressibleMimeTypes = result;
         return result;
     }
@@ -161,8 +170,7 @@ public class CompressionConfig {
     /**
      * Set Minimum size to trigger compression.
      *
-     * @param compressionMinSize The minimum content length required for
-     *                           compression in bytes
+     * @param compressionMinSize The minimum content length required for compression in bytes
      */
     public void setCompressionMinSize(int compressionMinSize) {
         this.compressionMinSize = compressionMinSize;
@@ -170,14 +178,13 @@ public class CompressionConfig {
 
 
     /**
-     * Determines if compression should be enabled for the given response and if
-     * it is, sets any necessary headers to mark it as such.
+     * Determines if compression should be enabled for the given response and if it is, sets any necessary headers to
+     * mark it as such.
      *
      * @param request  The request that triggered the response
      * @param response The response to consider compressing
      *
-     * @return {@code true} if compression was enabled for the given response,
-     *         otherwise {@code false}
+     * @return {@code true} if compression was enabled for the given response, otherwise {@code false}
      */
     public boolean useCompression(Request request, Response response) {
         // Check if compression is enabled
@@ -189,10 +196,21 @@ public class CompressionConfig {
 
         // Check if content is not already compressed
         MessageBytes contentEncodingMB = responseHeaders.getValue("Content-Encoding");
-        if (contentEncodingMB != null &&
-                (contentEncodingMB.indexOf("gzip") != -1 ||
-                        contentEncodingMB.indexOf("br") != -1)) {
-            return false;
+        if (contentEncodingMB != null) {
+            // Content-Encoding values are ordered but order is not important
+            // for this check so use a Set rather than a List
+            Set<String> tokens = new HashSet<>();
+            try {
+                TokenList.parseTokenList(responseHeaders.values("Content-Encoding"), tokens);
+            } catch (IOException e) {
+                // Because we are using StringReader, any exception here is a
+                // Tomcat bug.
+                log.warn(sm.getString("compressionConfig.ContentEncodingParseFail"), e);
+                return false;
+            }
+            if (tokens.contains("gzip") || tokens.contains("br")) {
+                return false;
+            }
         }
 
         // If force mode, the length and MIME type checks are skipped
@@ -211,13 +229,41 @@ public class CompressionConfig {
             }
         }
 
+        // Check if the resource has a strong ETag
+        String eTag = responseHeaders.getHeader("ETag");
+        if (eTag != null && !eTag.trim().startsWith("W/")) {
+            // Has an ETag that doesn't start with "W/..." so it must be a
+            // strong ETag
+            return false;
+        }
+
         // If processing reaches this far, the response might be compressed.
         // Therefore, set the Vary header to keep proxies happy
         ResponseUtil.addVaryFieldName(responseHeaders, "accept-encoding");
 
-        // Check if browser support gzip encoding
-        MessageBytes acceptEncodingMB = request.getMimeHeaders().getValue("accept-encoding");
-        if ((acceptEncodingMB == null) || (acceptEncodingMB.indexOf("gzip") == -1)) {
+        // Check if user-agent supports gzip encoding
+        // Only interested in whether gzip encoding is supported. Other
+        // encodings and weights can be ignored.
+        Enumeration<String> headerValues = request.getMimeHeaders().values("accept-encoding");
+        boolean foundGzip = false;
+        while (!foundGzip && headerValues.hasMoreElements()) {
+            List<AcceptEncoding> acceptEncodings = null;
+            try {
+                acceptEncodings = AcceptEncoding.parse(new StringReader(headerValues.nextElement()));
+            } catch (IOException ioe) {
+                // If there is a problem reading the header, disable compression
+                return false;
+            }
+
+            for (AcceptEncoding acceptEncoding : acceptEncodings) {
+                if ("gzip".equalsIgnoreCase(acceptEncoding.getEncoding())) {
+                    foundGzip = true;
+                    break;
+                }
+            }
+        }
+
+        if (!foundGzip) {
             return false;
         }
 
@@ -227,7 +273,7 @@ public class CompressionConfig {
             Pattern noCompressionUserAgents = this.noCompressionUserAgents;
             if (noCompressionUserAgents != null) {
                 MessageBytes userAgentValueMB = request.getMimeHeaders().getValue("user-agent");
-                if(userAgentValueMB != null) {
+                if (userAgentValueMB != null) {
                     String userAgentValue = userAgentValueMB.toString();
                     if (noCompressionUserAgents.matcher(userAgentValue).matches()) {
                         return false;
@@ -251,14 +297,14 @@ public class CompressionConfig {
      * Checks if any entry in the string array starts with the specified value
      *
      * @param sArray the StringArray
-     * @param value string
+     * @param value  string
      */
     private static boolean startsWithStringArray(String sArray[], String value) {
         if (value == null) {
             return false;
         }
-        for (int i = 0; i < sArray.length; i++) {
-            if (value.startsWith(sArray[i])) {
+        for (String s : sArray) {
+            if (value.startsWith(s)) {
                 return true;
             }
         }

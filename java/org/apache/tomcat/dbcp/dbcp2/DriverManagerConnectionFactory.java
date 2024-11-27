@@ -14,8 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.tomcat.dbcp.dbcp2;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -37,37 +37,67 @@ public class DriverManagerConnectionFactory implements ConnectionFactory {
         DriverManager.getDrivers();
     }
 
+    private final String connectionUri;
+
+    private final String userName;
+
+    private final char[] userPassword;
+
+    private final Properties properties;
+
     /**
      * Constructor for DriverManagerConnectionFactory.
      *
      * @param connectionUri
-     *            a database url of the form <code> jdbc:<em>subprotocol</em>:<em>subname</em></code>
+     *            a database connection string of the form {@code  jdbc:<em>subprotocol</em>:<em>subname</em>}
      * @since 2.2
      */
     public DriverManagerConnectionFactory(final String connectionUri) {
         this.connectionUri = connectionUri;
-        this.propeties = new Properties();
+        this.properties = new Properties();
+        this.userName = null;
+        this.userPassword = null;
     }
 
     /**
      * Constructor for DriverManagerConnectionFactory.
      *
      * @param connectionUri
-     *            a database url of the form <code> jdbc:<em>subprotocol</em>:<em>subname</em></code>
+     *            a database connection string of the form {@code  jdbc:<em>subprotocol</em>:<em>subname</em>}
      * @param properties
      *            a list of arbitrary string tag/value pairs as connection arguments; normally at least a "user" and
      *            "password" property should be included.
      */
     public DriverManagerConnectionFactory(final String connectionUri, final Properties properties) {
         this.connectionUri = connectionUri;
-        this.propeties = properties;
+        this.properties = properties;
+        this.userName = null;
+        this.userPassword = null;
     }
 
     /**
      * Constructor for DriverManagerConnectionFactory.
      *
      * @param connectionUri
-     *            a database url of the form <code>jdbc:<em>subprotocol</em>:<em>subname</em></code>
+     *            a database connection string of the form {@code jdbc:<em>subprotocol</em>:<em>subname</em>}
+     * @param userName
+     *            the database user
+     * @param userPassword
+     *            the user's password
+     */
+    public DriverManagerConnectionFactory(final String connectionUri, final String userName,
+            final char[] userPassword) {
+        this.connectionUri = connectionUri;
+        this.userName = userName;
+        this.userPassword = Utils.clone(userPassword);
+        this.properties = null;
+    }
+
+    /**
+     * Constructor for DriverManagerConnectionFactory.
+     *
+     * @param connectionUri
+     *            a database connection string of the form {@code jdbc:<em>subprotocol</em>:<em>subname</em>}
      * @param userName
      *            the database user
      * @param userPassword
@@ -77,22 +107,42 @@ public class DriverManagerConnectionFactory implements ConnectionFactory {
             final String userPassword) {
         this.connectionUri = connectionUri;
         this.userName = userName;
-        this.userPassword = userPassword;
+        this.userPassword =  Utils.toCharArray(userPassword);
+        this.properties = null;
     }
 
     @Override
     public Connection createConnection() throws SQLException {
-        if (null == propeties) {
+        if (null == properties) {
             if (userName == null && userPassword == null) {
                 return DriverManager.getConnection(connectionUri);
             }
-            return DriverManager.getConnection(connectionUri, userName, userPassword);
+            return DriverManager.getConnection(connectionUri, userName, Utils.toString(userPassword));
         }
-        return DriverManager.getConnection(connectionUri, propeties);
+        return DriverManager.getConnection(connectionUri, properties);
     }
 
-    private final String connectionUri;
-    private String userName;
-    private String userPassword;
-    private Properties propeties;
+    /**
+     * @return The connection URI.
+     * @since 2.6.0
+     */
+    public String getConnectionUri() {
+        return connectionUri;
+    }
+
+    /**
+     * @return The Properties.
+     * @since 2.6.0
+     */
+    public Properties getProperties() {
+        return properties;
+    }
+
+    /**
+     * @return The user name.
+     * @since 2.6.0
+     */
+    public String getUserName() {
+        return userName;
+    }
 }

@@ -18,11 +18,12 @@ package org.apache.catalina.authenticator;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -34,7 +35,6 @@ import org.apache.catalina.startup.TesterServletEncodeUrl;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.catalina.startup.TomcatBaseTest;
 import org.apache.tomcat.util.buf.ByteChunk;
-import org.apache.tomcat.util.codec.binary.Base64;
 import org.apache.tomcat.util.descriptor.web.LoginConfig;
 import org.apache.tomcat.util.descriptor.web.SecurityCollection;
 import org.apache.tomcat.util.descriptor.web.SecurityConstraint;
@@ -121,7 +121,7 @@ public class TestSSOnonLoginAndBasicAuthenticator extends TomcatBaseTest {
     private String encodedURL;
 
     /*
-     * Run some sanity checks without an established SSO session
+     * Run some checks without an established SSO session
      * to make sure the test environment is correct.
      */
     @Test
@@ -361,8 +361,7 @@ public class TestSSOnonLoginAndBasicAuthenticator extends TomcatBaseTest {
         if (expectedRC != HttpServletResponse.SC_OK) {
             Assert.assertEquals(expectedRC, rc);
             Assert.assertTrue(bc.getLength() > 0);
-        }
-        else {
+        } else {
             Assert.assertEquals("OK", bc.toString());
         }
 }
@@ -376,8 +375,7 @@ public class TestSSOnonLoginAndBasicAuthenticator extends TomcatBaseTest {
 
         if (useCookie && (cookies != null)) {
             addCookies(reqHeaders);
-        }
-        else {
+        } else {
             if (credentials != null) {
                 List<String> auth = new ArrayList<>();
                 auth.add(credentials.getCredentials());
@@ -404,8 +402,7 @@ public class TestSSOnonLoginAndBasicAuthenticator extends TomcatBaseTest {
                 }
                 Assert.assertTrue(methodFound);
             }
-        }
-        else {
+        } else {
             String thePage = bc.toString();
             Assert.assertNotNull(thePage);
             Assert.assertTrue(thePage.startsWith("OK"));
@@ -415,8 +412,7 @@ public class TestSSOnonLoginAndBasicAuthenticator extends TomcatBaseTest {
                     // harvest cookies whenever the server sends some new ones
                     cookies = newCookies;
                 }
-            }
-            else {
+            } else {
                 encodedURL = "";
                 final String start = "<a href=\"";
                 final String end = "\">";
@@ -608,9 +604,9 @@ public class TestSSOnonLoginAndBasicAuthenticator extends TomcatBaseTest {
 
         ManagerBase manager = (ManagerBase) activeContext.getManager();
         Session[] sessions = manager.findSessions();
-        for (int i = 0; i < sessions.length; i++) {
-            if (sessions[i]!=null && sessions[i].isValid()) {
-                sessions[i].setMaxInactiveInterval(EXTRA_DELAY_SECS);
+        for (Session session : sessions) {
+            if (session != null && session.isValid()) {
+                session.setMaxInactiveInterval(EXTRA_DELAY_SECS);
                 // leave it to be expired by the manager
             }
         }
@@ -672,7 +668,7 @@ public class TestSSOnonLoginAndBasicAuthenticator extends TomcatBaseTest {
             String userCredentials = username + ":" + password;
             byte[] credentialsBytes =
                     userCredentials.getBytes(StandardCharsets.ISO_8859_1);
-            String base64auth = Base64.encodeBase64String(credentialsBytes);
+            String base64auth = Base64.getEncoder().encodeToString(credentialsBytes);
             credentials= method + " " + base64auth;
         }
 

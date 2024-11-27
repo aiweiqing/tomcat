@@ -34,8 +34,7 @@ public class TestCipher {
      */
     @Test
     public void testAllOpenSSLCiphersMapped() throws Exception {
-        Set<String> openSSLCipherSuites =
-                TesterOpenSSL.getOpenSSLCiphersAsSet("ALL:eNULL");
+        Set<String> openSSLCipherSuites = TesterOpenSSL.getOpenSSLCiphersAsSet("ALL:eNULL");
 
         StringBuilder errors = new StringBuilder();
 
@@ -77,8 +76,7 @@ public class TestCipher {
         // OpenSSL does not include ECDH/ECDHE ciphers in all and there is no
         //         EC alias. Use aRSA.
         // OpenSSL 1.0.0 onwards does not include eNULL in all.
-        Set<String> availableCipherSuites =
-                TesterOpenSSL.getOpenSSLCiphersAsSet("ALL:eNULL:aRSA");
+        Set<String> availableCipherSuites = TesterOpenSSL.getOpenSSLCiphersAsSet("ALL:eNULL:aRSA");
 
         Set<String> expectedCipherSuites = new HashSet<>();
         for (Cipher cipher : Cipher.values()) {
@@ -89,20 +87,18 @@ public class TestCipher {
                     cipher.getProtocol().getOpenSSLName());
         }
 
-        Set<String> unavailableCipherSuites = new HashSet<>();
-        unavailableCipherSuites.addAll(expectedCipherSuites);
+        Set<String> unavailableCipherSuites = new HashSet<>(expectedCipherSuites);
         unavailableCipherSuites.removeAll(availableCipherSuites);
-        StringBuilder unavailableList = new StringBuilder();
+        StringBuilder unavailableList = new StringBuilder("Unavailable cipher suites: ");
         for (String cipher : unavailableCipherSuites) {
             unavailableList.append(cipher);
             unavailableList.append(' ');
         }
         Assert.assertEquals(unavailableList.toString(), 0,  unavailableCipherSuites.size());
 
-        Set<String> unexpectedCipherSuites = new HashSet<>();
-        unexpectedCipherSuites.addAll(availableCipherSuites);
+        Set<String> unexpectedCipherSuites = new HashSet<>(availableCipherSuites);
         unexpectedCipherSuites.removeAll(expectedCipherSuites);
-        StringBuilder unexpectedList = new StringBuilder();
+        StringBuilder unexpectedList = new StringBuilder("Unexpected cipher suites: ");
         for (String cipher : unexpectedCipherSuites) {
             unexpectedList.append(cipher);
             unexpectedList.append(' ');
@@ -549,9 +545,7 @@ public class TestCipher {
                 "SSL_KRB5_EXPORT_WITH_DES_CBC_40_MD5",
                 "SSL_RSA_EXPORT_WITH_RC2_CBC_40_MD5"));
 
-        Set<String> allNames = new HashSet<>();
-
-        allNames.addAll(sslNames);
+        Set<String> allNames = new HashSet<>(sslNames);
 
         for (String sslName : sslNames) {
             allNames.add("TLS" + sslName.substring(3));
@@ -757,7 +751,7 @@ public class TestCipher {
         private final Set<String> standardNames;
         private final Set<String> openSslUnmapped;
 
-        public JsseImpl(String vendor,  Set<String> standardNames,
+        JsseImpl(String vendor,  Set<String> standardNames,
                 Set<String> openSslUnmapped) {
             this.vendor = vendor;
             this.standardNames = standardNames;

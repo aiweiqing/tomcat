@@ -22,11 +22,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -42,7 +42,7 @@ public class TestCookieProcessorGenerationHttp extends TomcatBaseTest {
     public void testUtf8CookieValue() throws Exception {
         Tomcat tomcat = getTomcatInstance();
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
         ctx.setCookieProcessor(new Rfc6265CookieProcessor());
         Tomcat.addServlet(ctx, "test", new CookieServlet("\u0120"));
         ctx.addServletMappingDecoded("/test", "test");
@@ -70,7 +70,7 @@ public class TestCookieProcessorGenerationHttp extends TomcatBaseTest {
 
         private final String cookieValue;
 
-        public CookieServlet(String cookieValue) {
+        CookieServlet(String cookieValue) {
             this.cookieValue = cookieValue;
         }
 

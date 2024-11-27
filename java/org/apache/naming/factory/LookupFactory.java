@@ -41,18 +41,17 @@ public class LookupFactory implements ObjectFactory {
     private static final Log log = LogFactory.getLog(LookupFactory.class);
     private static final StringManager sm = StringManager.getManager(LookupFactory.class);
 
-    private static final ThreadLocal<Set<String>> names = new ThreadLocal<Set<String>>() {
-
-        @Override
-        protected Set<String> initialValue() {
-            return new HashSet<>();
-        }
-    };
+    private static final ThreadLocal<Set<String>> names = ThreadLocal.withInitial(HashSet::new);
 
     /**
      * Create a new Resource env instance.
      *
      * @param obj The reference object describing the DataSource
+     * @param name the bound name
+     * @param nameCtx unused
+     * @param environment unused
+     * @return the object instance
+     * @throws Exception if an error occur creating the instance
      */
     @Override
     public Object getObjectInstance(Object obj, Name name, Context nameCtx,
@@ -106,10 +105,11 @@ public class LookupFactory implements ObjectFactory {
                     }
                     if (factoryClass != null) {
                         try {
-                            factory = (ObjectFactory) factoryClass.newInstance();
+                            factory = (ObjectFactory) factoryClass.getConstructor().newInstance();
                         } catch (Throwable t) {
-                            if (t instanceof NamingException)
+                            if (t instanceof NamingException) {
                                 throw (NamingException) t;
+                            }
                             NamingException ex = new NamingException(
                                     sm.getString("lookupFactory.createFailed"));
                             ex.initCause(t);
@@ -134,6 +134,14 @@ public class LookupFactory implements ObjectFactory {
                             name, ref.getClassName(), lookupName, result.getClass().getName());
                     NamingException ne = new NamingException(msg);
                     log.warn(msg, ne);
+                    // Close the resource we no longer need if we know how to do so
+                    if (result instanceof AutoCloseable) {
+                        try {
+                            ((AutoCloseable) result).close();
+                        } catch (Exception e) {
+                            // Ignore
+                        }
+                    }
                     throw ne;
                 }
             } finally {

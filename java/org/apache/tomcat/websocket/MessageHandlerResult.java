@@ -16,7 +16,7 @@
  */
 package org.apache.tomcat.websocket;
 
-import javax.websocket.MessageHandler;
+import jakarta.websocket.MessageHandler;
 
 public class MessageHandlerResult {
 
@@ -24,8 +24,7 @@ public class MessageHandlerResult {
     private final MessageHandlerResultType type;
 
 
-    public MessageHandlerResult(MessageHandler handler,
-            MessageHandlerResultType type) {
+    public MessageHandlerResult(MessageHandler handler, MessageHandlerResultType type) {
         this.handler = handler;
         this.type = type;
     }

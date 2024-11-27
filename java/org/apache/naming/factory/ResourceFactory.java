@@ -21,6 +21,7 @@ import javax.naming.Reference;
 import javax.naming.spi.ObjectFactory;
 
 import org.apache.naming.ResourceRef;
+import org.apache.naming.StringManager;
 
 /**
  * Object factory for Resources.
@@ -28,6 +29,8 @@ import org.apache.naming.ResourceRef;
  * @author Remy Maucherat
  */
 public class ResourceFactory extends FactoryBase {
+
+    private static final StringManager sm = StringManager.getManager(ResourceFactory.class);
 
     @Override
     protected boolean isReferenceTypeSupported(Object obj) {
@@ -47,14 +50,13 @@ public class ResourceFactory extends FactoryBase {
                 factory = (ObjectFactory) Class.forName(
                         javaxSqlDataSourceFactoryClassName).getConstructor().newInstance();
             } catch (Exception e) {
-                NamingException ex = new NamingException(
-                        "Could not create resource factory instance");
+                NamingException ex = new NamingException(sm.getString("resourceFactory.factoryCreationError"));
                 ex.initCause(e);
                 throw ex;
             }
-        } else if (ref.getClassName().equals("javax.mail.Session")) {
+        } else if (ref.getClassName().equals("jakarta.mail.Session")) {
             String javaxMailSessionFactoryClassName =
-                System.getProperty("javax.mail.Session.Factory",
+                System.getProperty("jakarta.mail.Session.Factory",
                         "org.apache.naming.factory.MailSessionFactory");
             try {
                 factory = (ObjectFactory) Class.forName(
@@ -63,14 +65,10 @@ public class ResourceFactory extends FactoryBase {
                 if (t instanceof NamingException) {
                     throw (NamingException) t;
                 }
-                if (t instanceof ThreadDeath) {
-                    throw (ThreadDeath) t;
-                }
                 if (t instanceof VirtualMachineError) {
                     throw (VirtualMachineError) t;
                 }
-                NamingException ex = new NamingException(
-                        "Could not create resource factory instance");
+                NamingException ex = new NamingException(sm.getString("resourceFactory.factoryCreationError"));
                 ex.initCause(t);
                 throw ex;
             }

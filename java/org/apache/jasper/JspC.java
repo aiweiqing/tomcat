@@ -37,17 +37,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
 import java.util.StringTokenizer;
-import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import javax.servlet.jsp.JspFactory;
-import javax.servlet.jsp.tagext.TagLibraryInfo;
+import jakarta.servlet.jsp.JspFactory;
+import jakarta.servlet.jsp.tagext.TagLibraryInfo;
 
 import org.apache.jasper.compiler.Compiler;
 import org.apache.jasper.compiler.JspConfig;
@@ -104,9 +102,6 @@ public class JspC extends Task implements Options {
         // the Validator uses this to access the EL ExpressionFactory
         JspFactory.setDefaultFactory(new JspFactoryImpl());
     }
-
-    public static final String DEFAULT_IE_CLASS_ID =
-            "clsid:8AD9C840-044E-11D1-B3E9-00805F499D93";
 
     // Logger
     private static final Log log = LogFactory.getLog(JspC.class);
@@ -186,7 +181,7 @@ public class JspC extends Task implements Options {
     protected boolean mappedFile = false;
     protected boolean poolingEnabled = true;
     protected File scratchDir;
-    protected String ieClassId = DEFAULT_IE_CLASS_ID;
+
     protected String targetPackage;
     protected String targetClassName;
     protected String uriBase;
@@ -202,8 +197,8 @@ public class JspC extends Task implements Options {
 
     protected String compiler = null;
 
-    protected String compilerTargetVM = "1.8";
-    protected String compilerSourceVM = "1.8";
+    protected String compilerTargetVM = "21";
+    protected String compilerSourceVM = "21";
 
     protected boolean classDebugInfo = true;
 
@@ -227,7 +222,7 @@ public class JspC extends Task implements Options {
     /**
      * The pages.
      */
-    protected final List<String> pages = new Vector<>();
+    protected final List<String> pages = new ArrayList<>();
 
     /**
      * Needs better documentation, this data member does.
@@ -294,13 +289,8 @@ public class JspC extends Task implements Options {
                 } else {
                     jspc.execute();
                 }
-            } catch (JasperException je) {
-                System.err.println(je);
-                if (jspc.dieLevel != NO_DIE_LEVEL) {
-                    System.exit(jspc.dieLevel);
-                }
-            } catch (BuildException je) {
-                System.err.println(je);
+            } catch (JasperException | BuildException e) {
+                System.err.println(e);
                 if (jspc.dieLevel != NO_DIE_LEVEL) {
                     System.exit(jspc.dieLevel);
                 }
@@ -427,8 +417,7 @@ public class JspC extends Task implements Options {
                 setThreadCount(nextArg());
             } else {
                 if (tok.startsWith("-")) {
-                    throw new JasperException("Unrecognized option: " + tok +
-                        ".  Use -help for help.");
+                    throw new JasperException(Localizer.getMessage("jspc.error.unknownOption", tok));
                 }
                 if (!fullstop) {
                     argPos--;
@@ -488,9 +477,6 @@ public class JspC extends Task implements Options {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean isPoolingEnabled() {
         return poolingEnabled;
@@ -504,9 +490,6 @@ public class JspC extends Task implements Options {
         this.poolingEnabled = poolingEnabled;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean isXpoweredBy() {
         return xpoweredBy;
@@ -539,9 +522,6 @@ public class JspC extends Task implements Options {
         return -1;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean getErrorOnUseBeanInvalidClassAttribute() {
         return errorOnUseBeanInvalidClassAttribute;
@@ -556,9 +536,6 @@ public class JspC extends Task implements Options {
         errorOnUseBeanInvalidClassAttribute = b;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean getMappedFile() {
         return mappedFile;
@@ -576,18 +553,12 @@ public class JspC extends Task implements Options {
         classDebugInfo=b;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean getClassDebugInfo() {
         // compile with debug info
         return classDebugInfo;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean isCaching() {
         return caching;
@@ -603,9 +574,6 @@ public class JspC extends Task implements Options {
         this.caching = caching;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public Map<String, TagLibraryInfo> getCache() {
         return cache;
@@ -649,9 +617,6 @@ public class JspC extends Task implements Options {
         return false;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean isSmapSuppressed() {
         return smapSuppressed;
@@ -665,9 +630,6 @@ public class JspC extends Task implements Options {
         this.smapSuppressed = smapSuppressed;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean isSmapDumped() {
         return smapDumped;
@@ -695,44 +657,16 @@ public class JspC extends Task implements Options {
         this.genStringAsCharArray = genStringAsCharArray;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean genStringAsCharArray() {
         return genStringAsCharArray;
     }
 
-    /**
-     * Sets the class-id value to be sent to Internet Explorer when using
-     * &lt;jsp:plugin&gt; tags.
-     *
-     * @param ieClassId
-     *            Class-id value
-     */
-    public void setIeClassId(String ieClassId) {
-        this.ieClassId = ieClassId;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public String getIeClassId() {
-        return ieClassId;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public File getScratchDir() {
         return scratchDir;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String getCompiler() {
         return compiler;
@@ -748,17 +682,11 @@ public class JspC extends Task implements Options {
         compiler=c;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String getCompilerClassName() {
         return null;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String getCompilerTargetVM() {
         return compilerTargetVM;
@@ -774,9 +702,6 @@ public class JspC extends Task implements Options {
         compilerTargetVM = vm;
     }
 
-    /**
-     * {@inheritDoc}
-     */
      @Override
     public String getCompilerSourceVM() {
          return compilerSourceVM;
@@ -792,9 +717,6 @@ public class JspC extends Task implements Options {
         compilerSourceVM = vm;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public TldCache getTldCache() {
         return tldCache;
@@ -821,9 +743,6 @@ public class JspC extends Task implements Options {
         javaEncoding = encodingName;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean getFork() {
         return fork;
@@ -833,13 +752,11 @@ public class JspC extends Task implements Options {
         this.fork = fork;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String getClassPath() {
-        if( classPath != null )
+        if( classPath != null ) {
             return classPath;
+        }
         return System.getProperty("java.class.path");
     }
 
@@ -871,7 +788,7 @@ public class JspC extends Task implements Options {
     protected void addExtension(final String extension) {
         if(extension != null) {
             if(extensions == null) {
-                extensions = new Vector<>();
+                extensions = new ArrayList<>();
             }
 
             extensions.add(extension);
@@ -998,10 +915,11 @@ public class JspC extends Task implements Options {
                 newThreadCount = Integer.parseInt(threadCount);
             }
         } catch (NumberFormatException e) {
-            throw new BuildException("Couldn't parse thread count: " + threadCount);
+            throw new BuildException(Localizer.getMessage("jspc.error.parseThreadCount", threadCount));
         }
         if (newThreadCount < 1) {
-            throw new BuildException("There must be at least one thread: " + newThreadCount);
+            throw new BuildException(Localizer.getMessage(
+                    "jspc.error.minThreadCount", Integer.valueOf(newThreadCount)));
         }
         this.threadCount = newThreadCount;
     }
@@ -1034,18 +952,6 @@ public class JspC extends Task implements Options {
      */
     public void setClassName( String p ) {
         targetClassName=p;
-    }
-
-    /**
-     * File where we generate a web.xml fragment with the class definitions.
-     * @param s New value
-     * @deprecated Will be removed in Tomcat 10.
-     *             Use {@link #setWebXmlInclude(String)}
-     */
-    @Deprecated
-    public void setWebXmlFragment( String s ) {
-        webxmlFile=resolveFile(s).getAbsolutePath();
-        webxmlLevel=INC_WEBXML;
     }
 
     /**
@@ -1121,21 +1027,28 @@ public class JspC extends Task implements Options {
         return failOnError;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public JspConfig getJspConfig() {
         return jspConfig;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public TagPluginManager getTagPluginManager() {
         return tagPluginManager;
     }
+
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Hard-coded to {@code false} for pre-compiled code to enable repeatable
+     * builds.
+     */
+    @Override
+    public boolean getGeneratedJavaAddTimestamp() {
+        return false;
+    }
+
 
     /**
      * Adds servlet declaration and mapping for the JSP page servlet to the
@@ -1152,34 +1065,36 @@ public class JspC extends Task implements Options {
         throws IOException
     {
         if (log.isDebugEnabled()) {
-            log.debug("Generating web mapping for file " + file
-                      + " using compilation context " + clctxt);
+            log.debug(Localizer.getMessage("jspc.generatingMapping", file, clctxt));
         }
 
         String className = clctxt.getServletClassName();
         String packageName = clctxt.getServletPackageName();
 
         String thisServletName;
-        if  ("".equals(packageName)) {
+        if  (packageName.isEmpty()) {
             thisServletName = className;
         } else {
             thisServletName = packageName + '.' + className;
         }
 
         if (servletout != null) {
-            servletout.write("\n    <servlet>\n        <servlet-name>");
-            servletout.write(thisServletName);
-            servletout.write("</servlet-name>\n        <servlet-class>");
-            servletout.write(thisServletName);
-            servletout.write("</servlet-class>\n    </servlet>\n");
+            synchronized(servletout) {
+                servletout.write("\n    <servlet>\n        <servlet-name>");
+                servletout.write(thisServletName);
+                servletout.write("</servlet-name>\n        <servlet-class>");
+                servletout.write(thisServletName);
+                servletout.write("</servlet-class>\n    </servlet>\n");
+            }
         }
         if (mappingout != null) {
-            mappingout.write("\n    <servlet-mapping>\n        <servlet-name>");
-            mappingout.write(thisServletName);
-            mappingout.write("</servlet-name>\n        <url-pattern>");
-            mappingout.write(file.replace('\\', '/'));
-            mappingout.write("</url-pattern>\n    </servlet-mapping>\n");
-
+            synchronized(mappingout) {
+                mappingout.write("\n    <servlet-mapping>\n        <servlet-name>");
+                mappingout.write(thisServletName);
+                mappingout.write("</servlet-name>\n        <url-pattern>");
+                mappingout.write(file.replace('\\', '/'));
+                mappingout.write("</url-pattern>\n    </servlet-mapping>\n");
+            }
         }
     }
 
@@ -1265,12 +1180,14 @@ public class JspC extends Task implements Options {
             }
         }
 
-        if(!webXml2.delete() && log.isDebugEnabled())
+        if(!webXml2.delete() && log.isDebugEnabled()) {
             log.debug(Localizer.getMessage("jspc.delete.fail",
                     webXml2.toString()));
+        }
 
-        if (!(new File(webxmlFile)).delete() && log.isDebugEnabled())
+        if (!(new File(webxmlFile)).delete() && log.isDebugEnabled()) {
             log.debug(Localizer.getMessage("jspc.delete.fail", webxmlFile));
+        }
 
     }
 
@@ -1312,10 +1229,11 @@ public class JspC extends Task implements Options {
     protected void processFile(String file) throws JasperException {
 
         if (log.isDebugEnabled()) {
-            log.debug("Processing file: " + file);
+            log.debug(Localizer.getMessage("jspc.processing", file));
         }
 
         ClassLoader originalClassLoader = null;
+        Thread currentThread = Thread.currentThread();
 
         try {
             // set up a scratch/output dir if none is provided
@@ -1340,8 +1258,8 @@ public class JspC extends Task implements Options {
                 clctxt.setBasePackageName(targetPackage);
             }
 
-            originalClassLoader = Thread.currentThread().getContextClassLoader();
-            Thread.currentThread().setContextClassLoader(loader);
+            originalClassLoader = currentThread.getContextClassLoader();
+            currentThread.setContextClassLoader(loader);
 
             clctxt.setClassLoader(loader);
             clctxt.setClassPath(classPath);
@@ -1354,7 +1272,7 @@ public class JspC extends Task implements Options {
             // the .java file
             if( clc.isOutDated(compile) ) {
                 if (log.isDebugEnabled()) {
-                    log.debug(jspUri + " is out dated, compiling...");
+                    log.debug(Localizer.getMessage("jspc.outdated", jspUri));
                 }
 
                 clc.compile(compile, true);
@@ -1363,7 +1281,7 @@ public class JspC extends Task implements Options {
             // Generate mapping
             generateWebMapping( file, clctxt );
             if ( showSuccess ) {
-                log.info( "Built File: " + file );
+                log.info(Localizer.getMessage("jspc.built", file));
             }
 
         } catch (JasperException je) {
@@ -1385,50 +1303,45 @@ public class JspC extends Task implements Options {
             }
             throw new JasperException(e);
         } finally {
-            if(originalClassLoader != null) {
-                Thread.currentThread().setContextClassLoader(originalClassLoader);
+            if (originalClassLoader != null) {
+                currentThread.setContextClassLoader(originalClassLoader);
             }
         }
     }
 
-    /**
-     * Locate all jsp files in the webapp. Used if no explicit
-     * jsps are specified.
-     * @param base Base path
-     */
-    public void scanFiles( File base ) {
-        Stack<String> dirs = new Stack<>();
-        dirs.push(base.toString());
 
+    /**
+     * Locate all jsp files in the webapp. Used if no explicit jsps are
+     * specified. Scan is performed via the ServletContext and will include any
+     * JSPs located in resource JARs.
+     */
+    public void scanFiles() {
         // Make sure default extensions are always included
         if ((getExtensions() == null) || (getExtensions().size() < 2)) {
             addExtension("jsp");
             addExtension("jspx");
         }
 
-        while (!dirs.isEmpty()) {
-            String s = dirs.pop();
-            File f = new File(s);
-            if (f.exists() && f.isDirectory()) {
-                String[] files = f.list();
-                String ext;
-                for (int i = 0; (files != null) && i < files.length; i++) {
-                    File f2 = new File(s, files[i]);
-                    if (f2.isDirectory()) {
-                        dirs.push(f2.getPath());
-                    } else {
-                        String path = f2.getPath();
-                        String uri = path.substring(uriRoot.length());
-                        ext = files[i].substring(files[i].lastIndexOf('.') +1);
-                        if (getExtensions().contains(ext) ||
-                            jspConfig.isJspPage(uri)) {
-                            pages.add(path);
-                        }
-                    }
+        scanFilesInternal("/");
+    }
+
+
+    private void scanFilesInternal(String input) {
+        Set<String> paths = context.getResourcePaths(input);
+        for (String path : paths) {
+            if (path.endsWith("/")) {
+                scanFilesInternal(path);
+            } else if (jspConfig.isJspPage(path)) {
+                pages.add(path);
+            } else {
+                String ext = path.substring(path.lastIndexOf('.') + 1);
+                if (extensions.contains(ext)) {
+                    pages.add(path);
                 }
             }
         }
     }
+
 
     /**
      * Executes the compilation.
@@ -1436,7 +1349,7 @@ public class JspC extends Task implements Options {
     @Override
     public void execute() {
         if(log.isDebugEnabled()) {
-            log.debug("execute() starting for " + pages.size() + " pages.");
+            log.debug(Localizer.getMessage("jspc.start", Integer.toString(pages.size())));
         }
 
         try {
@@ -1471,7 +1384,35 @@ public class JspC extends Task implements Options {
 
             // No explicit pages, we'll process all .jsp in the webapp
             if (pages.size() == 0) {
-                scanFiles(uriRootF);
+                scanFiles();
+            } else {
+                // Ensure pages are all relative to the uriRoot.
+                // Those that are not will trigger an error later. The error
+                // could be detected earlier but isn't to support the use case
+                // when failFast is not used.
+                for (int i = 0; i < pages.size(); i++) {
+                    String nextjsp = pages.get(i);
+
+                    File fjsp = new File(nextjsp);
+                    if (!fjsp.isAbsolute()) {
+                        fjsp = new File(uriRootF, nextjsp);
+                    }
+                    if (!fjsp.exists()) {
+                        if (log.isWarnEnabled()) {
+                            log.warn(Localizer.getMessage(
+                                    "jspc.error.fileDoesNotExist", fjsp.toString()));
+                        }
+                        continue;
+                    }
+                    String s = fjsp.getAbsolutePath();
+                    if (s.startsWith(uriRoot)) {
+                        nextjsp = s.substring(uriRoot.length());
+                    }
+                    if (nextjsp.startsWith("." + File.separatorChar)) {
+                        nextjsp = nextjsp.substring(2);
+                    }
+                    pages.set(i, nextjsp);
+                }
             }
 
             initWebXml();
@@ -1481,62 +1422,48 @@ public class JspC extends Task implements Options {
 
             ExecutorService threadPool = Executors.newFixedThreadPool(threadCount);
             ExecutorCompletionService<Void> service = new ExecutorCompletionService<>(threadPool);
-            int pageCount = pages.size();
-
-            for (String nextjsp : pages) {
-                File fjsp = new File(nextjsp);
-                if (!fjsp.isAbsolute()) {
-                    fjsp = new File(uriRootF, nextjsp);
+            try {
+                int pageCount = pages.size();
+                for (String nextjsp : pages) {
+                    service.submit(new ProcessFile(nextjsp));
                 }
-                if (!fjsp.exists()) {
-                    if (log.isWarnEnabled()) {
-                        log.warn(Localizer.getMessage(
-                                "jspc.error.fileDoesNotExist", fjsp.toString()));
-                    }
-                    continue;
-                }
-                String s = fjsp.getAbsolutePath();
-                if (s.startsWith(uriRoot)) {
-                    nextjsp = s.substring(uriRoot.length());
-                }
-                if (nextjsp.startsWith("." + File.separatorChar)) {
-                    nextjsp = nextjsp.substring(2);
-                }
-                service.submit(new ProcessFile(nextjsp));
-            }
-            JasperException reportableError = null;
-            for (int i = 0; i < pageCount; i++) {
-                try {
-                    service.take().get();
-                } catch (ExecutionException e) {
-                    if (failFast) {
-                        // Generation is not interruptible so any tasks that
-                        // have started will complete.
-                        List<Runnable> notExecuted = threadPool.shutdownNow();
-                        i += notExecuted.size();
-                        Throwable t = e.getCause();
-                        if (t instanceof JasperException) {
-                            reportableError = (JasperException) t;
+                JasperException reportableError = null;
+                for (int i = 0; i < pageCount; i++) {
+                    try {
+                        service.take().get();
+                    } catch (ExecutionException e) {
+                        if (failFast) {
+                            // Generation is not interruptible so any tasks that
+                            // have started will complete.
+                            List<Runnable> notExecuted = threadPool.shutdownNow();
+                            i += notExecuted.size();
+                            Throwable t = e.getCause();
+                            if (t instanceof JasperException) {
+                                reportableError = (JasperException) t;
+                            } else {
+                                reportableError = new JasperException(t);
+                            }
                         } else {
-                            reportableError = new JasperException(t);
+                            errorCount++;
+                            log.error(Localizer.getMessage("jspc.error.compilation"), e);
                         }
-                    } else {
-                        errorCount++;
-                        log.error(e.getMessage());
+                    } catch (InterruptedException e) {
+                        // Ignore
                     }
-                } catch (InterruptedException e) {
-                    // Ignore
                 }
-            }
-            if (reportableError != null) {
-                throw reportableError;
+                if (reportableError != null) {
+                    throw reportableError;
+                }
+            } finally {
+                threadPool.shutdown();
             }
 
             long time = System.currentTimeMillis() - start;
             String msg = Localizer.getMessage("jspc.generation.result",
                     Integer.toString(errorCount), Long.toString(time));
             if (failOnError && errorCount > 0) {
-                System.out.println("Error Count: " + errorCount);
+                System.out.println(Localizer.getMessage(
+                        "jspc.errorCount", Integer.valueOf(errorCount)));
                 throw new BuildException(msg);
             } else {
                 log.info(msg);
@@ -1574,7 +1501,9 @@ public class JspC extends Task implements Options {
     }
 
     protected String nextFile() {
-        if (fullstop) argPos++;
+        if (fullstop) {
+            argPos++;
+        }
         if (argPos >= args.length) {
             return null;
         } else {
@@ -1723,24 +1652,24 @@ public class JspC extends Task implements Options {
                 // therefore we have permission to freak out
                 throw new RuntimeException(ioe.toString());
             }
-            File lib = new File(webappBase, "/WEB-INF/lib");
-            if (lib.exists() && lib.isDirectory()) {
-                String[] libs = lib.list();
+            File webinfLib = new File(webappBase, "/WEB-INF/lib");
+            if (webinfLib.exists() && webinfLib.isDirectory()) {
+                String[] libs = webinfLib.list();
                 if (libs != null) {
-                    for (int i = 0; i < libs.length; i++) {
-                        if( libs[i].length() <5 ) continue;
-                        String ext=libs[i].substring( libs[i].length() - 4 );
-                        if (! ".jar".equalsIgnoreCase(ext)) {
+                    for (String lib : libs) {
+                        if (lib.length() < 5) {
+                            continue;
+                        }
+                        String ext = lib.substring(lib.length() - 4);
+                        if (!".jar".equalsIgnoreCase(ext)) {
                             if (".tld".equalsIgnoreCase(ext)) {
-                                log.warn("TLD files should not be placed in "
-                                         + "/WEB-INF/lib");
+                                log.warn(Localizer.getMessage("jspc.warning.tldInWebInfLib"));
                             }
                             continue;
                         }
                         try {
-                            File libFile = new File(lib, libs[i]);
-                            classPath = classPath + File.pathSeparator
-                                + libFile.getAbsolutePath();
+                            File libFile = new File(webinfLib, lib);
+                            classPath = classPath + File.pathSeparator + libFile.getAbsolutePath();
                             urls.add(libFile.getAbsoluteFile().toURI().toURL());
                         } catch (IOException ioe) {
                             // failing a toCanonicalPath on a file that
@@ -1753,8 +1682,7 @@ public class JspC extends Task implements Options {
             }
         }
 
-        URL urlsA[]=new URL[urls.size()];
-        urls.toArray(urlsA);
+        URL[] urlsA = urls.toArray(new URL[0]);
         loader = new URLClassLoader(urlsA, this.getClass().getClassLoader());
         return loader;
     }
@@ -1762,7 +1690,7 @@ public class JspC extends Task implements Options {
     /**
      * Find the WEB-INF dir by looking up in the directory tree.
      * This is used if no explicit docbase is set, but only files.
-     * XXX Maybe we should require the docbase.
+     *
      * @param f The path from which it will start looking
      */
     protected void locateUriRoot( File f ) {
@@ -1797,8 +1725,7 @@ public class JspC extends Task implements Options {
                     }
 
                     // If there is no acceptable candidate, uriRoot will
-                    // remain null to indicate to the CompilerContext to
-                    // use the current working/user dir.
+                    // remain null.
                 }
 
                 if (uriRoot != null) {
@@ -1807,9 +1734,7 @@ public class JspC extends Task implements Options {
                 }
             }
         } catch (IOException ioe) {
-            // since this is an optional default and a null value
-            // for uriRoot has a non-error meaning, we can just
-            // pass straight through
+            // Missing uriRoot will be handled in the caller.
         }
     }
 

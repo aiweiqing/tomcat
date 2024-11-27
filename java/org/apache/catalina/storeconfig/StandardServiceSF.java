@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.catalina.storeconfig;
 
 import java.io.PrintWriter;
@@ -32,16 +31,12 @@ public class StandardServiceSF extends StoreFactoryBase {
 
     /**
      * Store the specified service element children.
-     *
-     * @param aWriter Current output writer
-     * @param indent Indentation level
-     * @param aService Service to store
-     * @param parentDesc The element description
-     * @throws Exception Configuration storing error
+     * <p>
+     * {@inheritDoc}
      */
     @Override
-    public void storeChildren(PrintWriter aWriter, int indent, Object aService,
-            StoreDescription parentDesc) throws Exception {
+    public void storeChildren(PrintWriter aWriter, int indent, Object aService, StoreDescription parentDesc)
+            throws Exception {
         if (aService instanceof StandardService) {
             StandardService service = (StandardService) aService;
             // Store nested <Listener> elements

@@ -29,6 +29,7 @@ import org.apache.catalina.Valve;
 import org.apache.catalina.connector.Connector;
 import org.apache.catalina.connector.Request;
 import org.apache.tomcat.unittest.TesterLogValidationFilter;
+import org.apache.tomcat.util.buf.UEncoder;
 import org.easymock.EasyMock;
 
 public class TestSSLValve {
@@ -36,8 +37,7 @@ public class TestSSLValve {
     public static class MockRequest extends Request {
 
         public MockRequest() {
-            super(EasyMock.createMock(Connector.class));
-            setCoyoteRequest(new org.apache.coyote.Request());
+            super(EasyMock.createMock(Connector.class), new org.apache.coyote.Request());
         }
 
         @Override
@@ -184,6 +184,17 @@ public class TestSSLValve {
 
 
     @Test
+    public void testSslClientCertHeaderEscaped() throws Exception {
+        String cert = certificateEscaped();
+        mockRequest.setHeader(valve.getSslClientEscapedCertHeader(), cert);
+
+        valve.invoke(mockRequest, null);
+
+        assertCertificateParsed();
+    }
+
+
+    @Test
     public void testSslClientCertNull() throws Exception {
         TesterLogValidationFilter f = TesterLogValidationFilter.add(null, "", null,
                 "org.apache.catalina.valves.SSLValve");
@@ -258,6 +269,17 @@ public class TestSSLValve {
 
 
     @Test
+    public void testSslSecureProtocolHeaderPresent() throws Exception {
+        String protocol = "secured-with";
+        mockRequest.setHeader(valve.getSslSecureProtocolHeader(), protocol);
+
+        valve.invoke(mockRequest, null);
+
+        Assert.assertEquals(protocol, mockRequest.getAttribute(Globals.SECURE_PROTOCOL_ATTR));
+    }
+
+
+    @Test
     public void testSslCipherHeaderPresent() throws Exception {
         String cipher = "ciphered-with";
         mockRequest.setHeader(valve.getSslCipherHeader(), cipher);
@@ -315,6 +337,17 @@ public class TestSSLValve {
 
     private static String certificateSingleLine(String separator) {
         return certificateSingleLine(CERTIFICATE_LINES, separator);
+    }
+
+
+    private static String certificateEscaped() throws Exception {
+        String cert = certificateSingleLine(CERTIFICATE_LINES, "\n");
+        String escaped = new UEncoder(UEncoder.SafeCharsSet.DEFAULT).encodeURL(cert, 0, cert.length()).toString();
+        Assert.assertTrue(escaped, escaped.contains("%0a")); // newline is escaped
+        Assert.assertTrue(escaped, escaped.contains("%20")); // space is escaped
+        Assert.assertTrue(escaped, escaped.contains("%2b")); // + is escaped
+        Assert.assertTrue(escaped, escaped.contains("%2f")); // / is escaped
+        return escaped;
     }
 
 

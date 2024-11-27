@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.catalina.storeconfig;
 
 import java.io.PrintWriter;
@@ -29,11 +28,12 @@ public class OpenSSLConfSF extends StoreFactoryBase {
 
     /**
      * Store nested OpenSSLConfCmd elements.
+     * <p>
      * {@inheritDoc}
      */
     @Override
-    public void storeChildren(PrintWriter aWriter, int indent, Object aOpenSSLConf,
-            StoreDescription parentDesc) throws Exception {
+    public void storeChildren(PrintWriter aWriter, int indent, Object aOpenSSLConf, StoreDescription parentDesc)
+            throws Exception {
         if (aOpenSSLConf instanceof OpenSSLConf) {
             OpenSSLConf openSslConf = (OpenSSLConf) aOpenSSLConf;
             // Store nested <OpenSSLConfCmd> elements

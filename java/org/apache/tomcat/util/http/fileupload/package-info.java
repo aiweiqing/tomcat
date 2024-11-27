@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-
 /**
  * <p><b>NOTE:</b> This code has been copied from commons-fileupload trunk
  * 1.3 and commons-io 1.4 and package renamed to avoid clashes with
@@ -31,8 +30,7 @@
  * While this package provides the generic functionality for file uploads,
  * these classes are not typically used directly. Instead, normal usage
  * involves one of the provided extensions of
- * {@link org.apache.tomcat.util.http.fileupload.FileUpload FileUpload} such as
- * {@link org.apache.tomcat.util.http.fileupload.servlet.ServletFileUpload ServletFileUpload}
+ * {@link org.apache.tomcat.util.http.fileupload.FileUpload FileUpload}
  * together with a factory for
  * {@link org.apache.tomcat.util.http.fileupload.FileItem FileItem} instances,
  * such as
@@ -60,9 +58,9 @@
  *   Iterator i = fileItems.iterator();
  *   String comment = ((FileItem)i.next()).getString();
  *   FileItem fi = (FileItem)i.next();
- *   // filename on the client
+ *   // file name on the client
  *   String fileName = fi.getName();
- *   // save comment and filename to database
+ *   // save comment and file name to database
  *   ...
  *   // write the file
  *   fi.write(new File("/www/uploads/", fileName));
@@ -70,7 +68,7 @@
  * </pre>
  * <p>
  * In the example above, the first file is loaded into memory as a
- * <code>String</code>. Before calling the <code>getString</code> method,
+ * {@code String}. Before calling the {@code getString} method,
  * the data may have been in memory or on disk depending on its size. The
  * second file we assume it will be large and therefore never explicitly
  * load it into memory, though if it is less than 4096 bytes it will be

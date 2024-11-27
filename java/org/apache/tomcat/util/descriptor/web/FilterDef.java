@@ -20,7 +20,7 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.servlet.Filter;
+import jakarta.servlet.Filter;
 
 import org.apache.tomcat.util.res.StringManager;
 
@@ -162,8 +162,14 @@ public class FilterDef implements Serializable {
 
     public void setAsyncSupported(String asyncSupported) {
         this.asyncSupported = asyncSupported;
+        asyncSupportedBoolean = !("false".equalsIgnoreCase(asyncSupported));
     }
 
+    private boolean asyncSupportedBoolean = true;
+
+    public boolean getAsyncSupportedBoolean() {
+        return asyncSupportedBoolean;
+    }
 
     // --------------------------------------------------------- Public Methods
 
@@ -197,7 +203,7 @@ public class FilterDef implements Serializable {
         sb.append(this.filterName);
         sb.append(", filterClass=");
         sb.append(this.filterClass);
-        sb.append("]");
+        sb.append(']');
         return sb.toString();
     }
 

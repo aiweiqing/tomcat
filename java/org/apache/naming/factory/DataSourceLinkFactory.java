@@ -14,8 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
 package org.apache.naming.factory;
 
 import java.lang.reflect.InvocationHandler;
@@ -46,11 +44,6 @@ public class DataSourceLinkFactory extends ResourceLinkFactory {
     // ------------------------------------------------- ObjectFactory Methods
 
 
-    /**
-     * Create a new DataSource instance.
-     *
-     * @param obj The reference object describing the DataSource
-     */
     @Override
     public Object getObjectInstance(Object obj, Name name, Context nameCtx, Hashtable<?,?> environment)
         throws NamingException {
@@ -60,8 +53,8 @@ public class DataSourceLinkFactory extends ResourceLinkFactory {
             Reference ref = (Reference) obj;
             RefAddr userAttr = ref.get("username");
             RefAddr passAttr = ref.get("password");
-            if (userAttr.getContent()!=null && passAttr.getContent()!=null) {
-                result = wrapDataSource(result,userAttr.getContent().toString(), passAttr.getContent().toString());
+            if (userAttr != null && passAttr != null && userAttr.getContent() != null && passAttr.getContent() != null) {
+                result = wrapDataSource(result, userAttr.getContent().toString(), passAttr.getContent().toString());
             }
         }
         return result;
@@ -76,9 +69,6 @@ public class DataSourceLinkFactory extends ResourceLinkFactory {
         }catch (Exception x) {
             if (x instanceof InvocationTargetException) {
                 Throwable cause = x.getCause();
-                if (cause instanceof ThreadDeath) {
-                    throw (ThreadDeath) cause;
-                }
                 if (cause instanceof VirtualMachineError) {
                     throw (VirtualMachineError) cause;
                 }
@@ -86,8 +76,9 @@ public class DataSourceLinkFactory extends ResourceLinkFactory {
                     x = (Exception) cause;
                 }
             }
-            if (x instanceof NamingException) throw (NamingException)x;
-            else {
+            if (x instanceof NamingException) {
+                throw (NamingException)x;
+            } else {
                 NamingException nx = new NamingException(x.getMessage());
                 nx.initCause(x);
                 throw nx;
@@ -137,7 +128,7 @@ public class DataSourceLinkFactory extends ResourceLinkFactory {
             if (iface == DataSource.class) {
                 return ds;
             } else {
-                throw new SQLException("Not a wrapper of "+iface.getName());
+                throw new SQLException(sm.getString("dataSourceLinkFactory.badWrapper", iface.getName()));
             }
         }
 

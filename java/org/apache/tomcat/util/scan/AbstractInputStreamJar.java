@@ -26,7 +26,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.Manifest;
 
 import org.apache.tomcat.Jar;
-import org.apache.tomcat.util.compat.JreCompat;
 
 /**
  * Base implementation of Jar for implementations that use a JarInputStream to
@@ -68,9 +67,9 @@ public abstract class AbstractInputStreamJar implements Jar {
                 // Skip base entries where there is a multi-release entry
                 // Skip multi-release entries that are not being used
                 while (entry != null &&
-                        (mrMap.keySet().contains(entry.getName()) ||
+                        (mrMap.containsKey(entry.getName()) ||
                                 entry.getName().startsWith("META-INF/versions/") &&
-                                !mrMap.values().contains(entry.getName()))) {
+                                !mrMap.containsValue(entry.getName()))) {
                     entry = jarInputStream.getNextJarEntry();
                 }
             } else {
@@ -130,6 +129,13 @@ public abstract class AbstractInputStreamJar implements Jar {
 
 
     @Override
+    public boolean exists(String name) throws IOException {
+        gotoEntry(name);
+        return entry != null;
+    }
+
+
+    @Override
     public String getURL(String entry) {
         StringBuilder result = new StringBuilder("jar:");
         result.append(getJarFileURL().toExternalForm());
@@ -154,20 +160,16 @@ public abstract class AbstractInputStreamJar implements Jar {
         jarInputStream = createJarInputStream();
         // Only perform multi-release processing on first access
         if (multiRelease == null) {
-            if (JreCompat.isJre9Available()) {
-                Manifest manifest = jarInputStream.getManifest();
-                if (manifest == null) {
+            Manifest manifest = jarInputStream.getManifest();
+            if (manifest == null) {
+                multiRelease = Boolean.FALSE;
+            } else {
+                String mrValue = manifest.getMainAttributes().getValue("Multi-Release");
+                if (mrValue == null) {
                     multiRelease = Boolean.FALSE;
                 } else {
-                    String mrValue = manifest.getMainAttributes().getValue("Multi-Release");
-                    if (mrValue == null) {
-                        multiRelease = Boolean.FALSE;
-                    } else {
-                        multiRelease = Boolean.valueOf(mrValue);
-                    }
+                    multiRelease = Boolean.valueOf(mrValue);
                 }
-            } else {
-                multiRelease = Boolean.FALSE;
             }
             if (multiRelease.booleanValue()) {
                 if (mrMap == null) {
@@ -229,7 +231,7 @@ public abstract class AbstractInputStreamJar implements Jar {
 
 
     private void populateMrMap() throws IOException {
-        int targetVersion = JreCompat.getInstance().jarFileRuntimeMajorVersion();
+        int targetVersion = Runtime.version().feature();
 
         Map<String,Integer> mrVersions = new HashMap<>();
 

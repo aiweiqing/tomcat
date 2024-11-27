@@ -56,7 +56,6 @@ public class TestHttpParserHost {
         result.add(new Object[] { TestType.IPv4, "0.0.0.0:8080", Integer.valueOf(7), null} );
         // IPv4 - invalid
         result.add(new Object[] { TestType.IPv4, ".0.0.0", Integer.valueOf(-1), IAE} );
-        result.add(new Object[] { TestType.IPv4, "0.0.0.", Integer.valueOf(-1), IAE} );
         result.add(new Object[] { TestType.IPv4, "0..0.0", Integer.valueOf(-1), IAE} );
         result.add(new Object[] { TestType.IPv4, "0]", Integer.valueOf(-1), IAE} );
         // Domain Name - valid
@@ -79,6 +78,8 @@ public class TestHttpParserHost {
         result.add(new Object[] { TestType.IPv4, "0.a.0.0:8080", Integer.valueOf(7), null} );
         result.add(new Object[] { TestType.IPv4, "localhost", Integer.valueOf(-1), null} );
         result.add(new Object[] { TestType.IPv4, "localhost:8080", Integer.valueOf(9), null} );
+        result.add(new Object[] { TestType.IPv4, "4294967295.localhost", Integer.valueOf(-1), null} );
+        result.add(new Object[] { TestType.IPv4, "4294967295.com", Integer.valueOf(-1), null} );
         result.add(new Object[] { TestType.IPv4, "tomcat.apache.org", Integer.valueOf(-1), null} );
         result.add(new Object[] { TestType.IPv4, "tomcat.apache.org:8080", Integer.valueOf(17), null} );
         result.add(new Object[] { TestType.IPv4, "0.0.0.com", Integer.valueOf(-1), null} );
@@ -126,14 +127,18 @@ public class TestHttpParserHost {
         result.add(new Object[] { TestType.IPv4, "myapp-t.my-domain.c-om", Integer.valueOf(-1), null} );
         result.add(new Object[] { TestType.IPv4, "myapp-t.my-domain.c-om:8080", Integer.valueOf(22), null} );
         result.add(new Object[] { TestType.IPv4, "gateway.demo-ilt-latest-demo:9000", Integer.valueOf(28), null} );
+        // Domain Name with trailing dot - valid
+        result.add(new Object[] { TestType.IPv4, "0.0.0.", Integer.valueOf(-1), null} );
+        result.add(new Object[] { TestType.IPv4, "myapp-t.mydomain.com.", Integer.valueOf(-1), null} );
+        result.add(new Object[] { TestType.IPv4, "myapp-t.mydomain.com.:8080", Integer.valueOf(21), null} );
+        result.add(new Object[] { TestType.IPv4, "foo.bar.", Integer.valueOf(-1), null} );
+        result.add(new Object[] { TestType.IPv4, "foo.bar.:8080", Integer.valueOf(8), null} );
         // Domain Name - invalid
         result.add(new Object[] { TestType.IPv4, ".", Integer.valueOf(-1), IAE} );
         result.add(new Object[] { TestType.IPv4, ".:8080", Integer.valueOf(-1), IAE} );
         result.add(new Object[] { TestType.IPv4, ".foo.bar", Integer.valueOf(-1), IAE} );
         result.add(new Object[] { TestType.IPv4, "-foo.bar", Integer.valueOf(-1), IAE} );
-        result.add(new Object[] { TestType.IPv4, "foo.bar.", Integer.valueOf(-1), IAE} );
         result.add(new Object[] { TestType.IPv4, "foo.bar-", Integer.valueOf(-1), IAE} );
-        result.add(new Object[] { TestType.IPv4, "foo.bar.:8080", Integer.valueOf(-1), IAE} );
         result.add(new Object[] { TestType.IPv4, "foo.bar-:8080", Integer.valueOf(-1), IAE} );
         result.add(new Object[] { TestType.IPv4, "^foo.bar", Integer.valueOf(-1), IAE} );
         result.add(new Object[] { TestType.IPv4, "foo-.bar", Integer.valueOf(-1), IAE} );
@@ -214,6 +219,15 @@ public class TestHttpParserHost {
             Integer.valueOf(-1), IAE} );
         result.add(new Object[] { TestType.IPv6, "[1111:2222:3333]",
             Integer.valueOf(-1), IAE} );
+        // Domain name - invalid port
+        result.add(new Object[] { TestType.IPv4, "localhost:x", Integer.valueOf(-1), IAE} );
+        result.add(new Object[] { TestType.IPv4, "localhost:-1", Integer.valueOf(-1), IAE} );
+        // IPv4 - invalid port
+        result.add(new Object[] { TestType.IPv4, "127.0.0.1:x", Integer.valueOf(-1), IAE} );
+        result.add(new Object[] { TestType.IPv4, "127.0.0.1:-1", Integer.valueOf(-1), IAE} );
+        // IPv6 - invalid port
+        result.add(new Object[] { TestType.IPv4, "[::1]:x", Integer.valueOf(-1), IAE} );
+        result.add(new Object[] { TestType.IPv4, "[::1]:-1", Integer.valueOf(-1), IAE} );
         return result;
     }
 
@@ -265,7 +279,7 @@ public class TestHttpParserHost {
     }
 
 
-    private static enum TestType {
+    private enum TestType {
         IPv4,
         IPv6
     }

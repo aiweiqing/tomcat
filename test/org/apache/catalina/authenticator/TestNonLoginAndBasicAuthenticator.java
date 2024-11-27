@@ -18,11 +18,12 @@ package org.apache.catalina.authenticator;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,7 +34,6 @@ import org.apache.catalina.startup.TesterServlet;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.catalina.startup.TomcatBaseTest;
 import org.apache.tomcat.util.buf.ByteChunk;
-import org.apache.tomcat.util.codec.binary.Base64;
 import org.apache.tomcat.util.descriptor.web.LoginConfig;
 import org.apache.tomcat.util.descriptor.web.SecurityCollection;
 import org.apache.tomcat.util.descriptor.web.SecurityConstraint;
@@ -369,8 +369,7 @@ public class TestNonLoginAndBasicAuthenticator extends TomcatBaseTest {
         if (expectedRC != HttpServletResponse.SC_OK) {
             Assert.assertEquals(expectedRC, rc);
             Assert.assertTrue(bc.getLength() > 0);
-        }
-        else {
+        } else {
             Assert.assertEquals("OK", bc.toString());
         }
     }
@@ -383,8 +382,7 @@ public class TestNonLoginAndBasicAuthenticator extends TomcatBaseTest {
 
         if (useCookie) {
             addCookies(reqHeaders);
-        }
-        else {
+        } else {
             if (credentials != null) {
                 List<String> auth = new ArrayList<>();
                 auth.add(credentials.getCredentials());
@@ -411,8 +409,7 @@ public class TestNonLoginAndBasicAuthenticator extends TomcatBaseTest {
                 }
                 Assert.assertTrue(methodFound);
             }
-        }
-        else {
+        } else {
             Assert.assertEquals("OK", bc.toString());
             List<String> newCookies = respHeaders.get(SERVER_COOKIE_HEADER);
             if (newCookies != null) {
@@ -561,7 +558,7 @@ public class TestNonLoginAndBasicAuthenticator extends TomcatBaseTest {
             String userCredentials = username + ":" + password;
             byte[] credentialsBytes =
                     userCredentials.getBytes(StandardCharsets.ISO_8859_1);
-            String base64auth = Base64.encodeBase64String(credentialsBytes);
+            String base64auth = Base64.getEncoder().encodeToString(credentialsBytes);
             credentials= method + " " + base64auth;
         }
 

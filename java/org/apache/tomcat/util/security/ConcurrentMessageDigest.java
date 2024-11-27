@@ -18,10 +18,12 @@ package org.apache.tomcat.util.security;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+
+import org.apache.tomcat.util.res.StringManager;
 
 /**
  * A thread safe wrapper around {@link MessageDigest} that does not make use
@@ -30,11 +32,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class ConcurrentMessageDigest {
 
+    private static final StringManager sm = StringManager.getManager(ConcurrentMessageDigest.class);
+
     private static final String MD5 = "MD5";
     private static final String SHA1 = "SHA-1";
 
     private static final Map<String,Queue<MessageDigest>> queues =
-            new HashMap<>();
+            new ConcurrentHashMap<>();
 
 
     private ConcurrentMessageDigest() {
@@ -47,7 +51,7 @@ public class ConcurrentMessageDigest {
             init(MD5);
             init(SHA1);
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalArgumentException(e);
+            throw new IllegalArgumentException(sm.getString("concurrentMessageDigest.noDigest"), e);
         }
     }
 
@@ -64,11 +68,11 @@ public class ConcurrentMessageDigest {
     }
 
 
-    public static byte[] digest(String algorithm, int rounds, byte[]... input) {
+    public static byte[] digest(String algorithm, int iterations, byte[]... input) {
 
         Queue<MessageDigest> queue = queues.get(algorithm);
         if (queue == null) {
-            throw new IllegalStateException("Must call init() first");
+            throw new IllegalStateException(sm.getString("concurrentMessageDigest.noDigest"));
         }
 
         MessageDigest md = queue.poll();
@@ -78,7 +82,7 @@ public class ConcurrentMessageDigest {
             } catch (NoSuchAlgorithmException e) {
                 // Ignore. Impossible if init() has been successfully called
                 // first.
-                throw new IllegalStateException("Must call init() first");
+                throw new IllegalStateException(sm.getString("concurrentMessageDigest.noDigest"), e);
             }
         }
 
@@ -89,8 +93,8 @@ public class ConcurrentMessageDigest {
         byte[] result = md.digest();
 
         // Subsequent rounds
-        if (rounds > 1) {
-            for (int i = 1; i < rounds; i++) {
+        if (iterations > 1) {
+            for (int i = 1; i < iterations; i++) {
                 md.update(result);
                 result = md.digest();
             }
@@ -113,13 +117,11 @@ public class ConcurrentMessageDigest {
      *                                  JVM
      */
     public static void init(String algorithm) throws NoSuchAlgorithmException {
-        synchronized (queues) {
-            if (!queues.containsKey(algorithm)) {
-                MessageDigest md = MessageDigest.getInstance(algorithm);
-                Queue<MessageDigest> queue = new ConcurrentLinkedQueue<>();
-                queue.add(md);
-                queues.put(algorithm, queue);
-            }
+        if (!queues.containsKey(algorithm)) {
+            MessageDigest md = MessageDigest.getInstance(algorithm);
+            Queue<MessageDigest> queue = new ConcurrentLinkedQueue<>();
+            queue.add(md);
+            queues.putIfAbsent(algorithm, queue);
         }
     }
 }

@@ -14,14 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.jasper.compiler;
 
-import javax.servlet.jsp.tagext.TagAttributeInfo;
-import javax.servlet.jsp.tagext.TagExtraInfo;
-import javax.servlet.jsp.tagext.TagInfo;
-import javax.servlet.jsp.tagext.TagLibraryInfo;
-import javax.servlet.jsp.tagext.TagVariableInfo;
+import jakarta.servlet.jsp.tagext.TagAttributeInfo;
+import jakarta.servlet.jsp.tagext.TagExtraInfo;
+import jakarta.servlet.jsp.tagext.TagInfo;
+import jakarta.servlet.jsp.tagext.TagLibraryInfo;
+import jakarta.servlet.jsp.tagext.TagVariableInfo;
 
 /**
  * TagInfo extension used by tag handlers that are implemented via tag files.
@@ -33,7 +32,7 @@ class JasperTagInfo extends TagInfo {
 
     private final String dynamicAttrsMapName;
 
-    public JasperTagInfo(String tagName,
+    JasperTagInfo(String tagName,
             String tagClassName,
             String bodyContent,
             String infoString,

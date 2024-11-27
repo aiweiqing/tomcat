@@ -16,12 +16,10 @@
  */
 package org.apache.tomcat.util.http.fileupload.util;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.apache.tomcat.util.http.fileupload.InvalidFileNameException;
 
 /**
@@ -41,7 +39,7 @@ public final class Streams {
      * Default buffer size for use in
      * {@link #copy(InputStream, OutputStream, boolean)}.
      */
-    private static final int DEFAULT_BUFFER_SIZE = 8192;
+    public static final int DEFAULT_BUFFER_SIZE = 8192;
 
     /**
      * Copies the contents of the given {@link InputStream}
@@ -63,7 +61,8 @@ public final class Streams {
      * @return Number of bytes, which have been copied.
      * @throws IOException An I/O error occurred.
      */
-    public static long copy(InputStream inputStream, OutputStream outputStream, boolean closeOutputStream)
+    public static long copy(final InputStream inputStream, final OutputStream outputStream,
+                            final boolean closeOutputStream)
             throws IOException {
         return copy(inputStream, outputStream, closeOutputStream, new byte[DEFAULT_BUFFER_SIZE]);
     }
@@ -86,16 +85,15 @@ public final class Streams {
      * @return Number of bytes, which have been copied.
      * @throws IOException An I/O error occurred.
      */
-    public static long copy(InputStream inputStream,
-            OutputStream outputStream, boolean closeOutputStream,
-            byte[] buffer)
+    public static long copy(final InputStream inputStream,
+            final OutputStream outputStream, final boolean closeOutputStream,
+            final byte[] buffer)
     throws IOException {
-        OutputStream out = outputStream;
-        InputStream in = inputStream;
-        try {
+        try (OutputStream out = outputStream;
+              InputStream in = inputStream) {
             long total = 0;
             for (;;) {
-                int res = in.read(buffer);
+                final int res = in.read(buffer);
                 if (res == -1) {
                     break;
                 }
@@ -112,51 +110,10 @@ public final class Streams {
                 } else {
                     out.flush();
                 }
-                out = null;
             }
             in.close();
-            in = null;
             return total;
-        } finally {
-            IOUtils.closeQuietly(in);
-            if (closeOutputStream) {
-                IOUtils.closeQuietly(out);
-            }
         }
-    }
-
-    /**
-     * This convenience method allows to read a
-     * {@link org.apache.tomcat.util.http.fileupload.FileItemStream}'s
-     * content into a string. The platform's default character encoding
-     * is used for converting bytes into characters.
-     *
-     * @param inputStream The input stream to read.
-     * @see #asString(InputStream, String)
-     * @return The streams contents, as a string.
-     * @throws IOException An I/O error occurred.
-     */
-    public static String asString(InputStream inputStream) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        copy(inputStream, baos, true);
-        return baos.toString();
-    }
-
-    /**
-     * This convenience method allows to read a
-     * {@link org.apache.tomcat.util.http.fileupload.FileItemStream}'s
-     * content into a string, using the given character encoding.
-     *
-     * @param inputStream The input stream to read.
-     * @param encoding The character encoding, typically "UTF-8".
-     * @see #asString(InputStream)
-     * @return The streams contents, as a string.
-     * @throws IOException An I/O error occurred.
-     */
-    public static String asString(InputStream inputStream, String encoding) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        copy(inputStream, baos, true);
-        return baos.toString(encoding);
     }
 
     /**
@@ -169,12 +126,12 @@ public final class Streams {
      * @return Unmodified file name, if valid.
      * @throws InvalidFileNameException The file name was found to be invalid.
      */
-    public static String checkFileName(String fileName) {
+    public static String checkFileName(final String fileName) {
         if (fileName != null  &&  fileName.indexOf('\u0000') != -1) {
             // pFileName.replace("\u0000", "\\0")
             final StringBuilder sb = new StringBuilder();
             for (int i = 0;  i < fileName.length();  i++) {
-                char c = fileName.charAt(i);
+                final char c = fileName.charAt(i);
                 switch (c) {
                     case 0:
                         sb.append("\\0");

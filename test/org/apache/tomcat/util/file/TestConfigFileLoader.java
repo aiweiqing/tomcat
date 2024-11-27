@@ -17,6 +17,7 @@
  */
 package org.apache.tomcat.util.file;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,6 +26,8 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.catalina.Globals;
+import org.apache.catalina.startup.CatalinaBaseConfigurationSource;
 import org.apache.catalina.webresources.TomcatURLStreamHandlerFactory;
 
 public class TestConfigFileLoader {
@@ -32,7 +35,8 @@ public class TestConfigFileLoader {
     @BeforeClass
     public static void setup() {
         TomcatURLStreamHandlerFactory.getInstance();
-        System.setProperty("catalina.base", "");
+        System.setProperty(Globals.CATALINA_BASE_PROP, "");
+        ConfigFileLoader.setSource(new CatalinaBaseConfigurationSource(new File(System.getProperty(Globals.CATALINA_BASE_PROP)), null));
     }
 
     @Test
@@ -56,7 +60,7 @@ public class TestConfigFileLoader {
     }
 
     private void doTest(String path) throws IOException {
-        try (InputStream is = ConfigFileLoader.getInputStream(path)) {
+        try (InputStream is = ConfigFileLoader.getSource().getResource(path).getInputStream()) {
             Assert.assertNotNull(is);
         }
     }

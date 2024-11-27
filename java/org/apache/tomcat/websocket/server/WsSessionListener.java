@@ -16,10 +16,10 @@
  */
 package org.apache.tomcat.websocket.server;
 
-import javax.servlet.http.HttpSessionEvent;
-import javax.servlet.http.HttpSessionListener;
+import jakarta.servlet.http.HttpSessionEvent;
+import jakarta.servlet.http.HttpSessionListener;
 
-public class WsSessionListener implements HttpSessionListener{
+public class WsSessionListener implements HttpSessionListener {
 
     private final WsServerContainer wsServerContainer;
 

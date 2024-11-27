@@ -14,28 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.jasper.compiler;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FilePermission;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.net.URLDecoder;
-import java.security.CodeSource;
-import java.security.PermissionCollection;
-import java.security.Policy;
-import java.security.cert.Certificate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.servlet.ServletContext;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;
 
-import org.apache.jasper.Constants;
 import org.apache.jasper.JspCompilationContext;
 import org.apache.jasper.Options;
 import org.apache.jasper.runtime.ExceptionUtils;
@@ -95,12 +89,12 @@ public final class JspRuntimeContext {
             loader = this.getClass().getClassLoader();
         }
 
-        if (log.isDebugEnabled()) {
+        if (log.isTraceEnabled()) {
             if (loader != null) {
-                log.debug(Localizer.getMessage("jsp.message.parent_class_loader_is",
+                log.trace(Localizer.getMessage("jsp.message.parent_class_loader_is",
                                                loader.toString()));
             } else {
-                log.debug(Localizer.getMessage("jsp.message.parent_class_loader_is",
+                log.trace(Localizer.getMessage("jsp.message.parent_class_loader_is",
                                                "<none>"));
             }
         }
@@ -109,18 +103,7 @@ public final class JspRuntimeContext {
         classpath = initClassPath();
 
         if (context instanceof org.apache.jasper.servlet.JspCServletContext) {
-            codeSource = null;
-            permissionCollection = null;
             return;
-        }
-
-        if (Constants.IS_SECURITY_ENABLED) {
-            SecurityHolder holder = initSecurity();
-            codeSource = holder.cs;
-            permissionCollection = holder.pc;
-        } else {
-            codeSource = null;
-            permissionCollection = null;
         }
 
         // If this web application context is running from a
@@ -134,8 +117,8 @@ public final class JspRuntimeContext {
 
         if (options.getMaxLoadedJsps() > 0) {
             jspQueue = new FastRemovalDequeue<>(options.getMaxLoadedJsps());
-            if (log.isDebugEnabled()) {
-                log.debug(Localizer.getMessage("jsp.message.jsp_queue_created",
+            if (log.isTraceEnabled()) {
+                log.trace(Localizer.getMessage("jsp.message.jsp_queue_created",
                                                "" + options.getMaxLoadedJsps(), context.getContextPath()));
             }
         }
@@ -152,8 +135,6 @@ public final class JspRuntimeContext {
     private final ServletContext context;
     private final Options options;
     private final ClassLoader parentClassLoader;
-    private final PermissionCollection permissionCollection;
-    private final CodeSource codeSource;
     private final String classpath;
     private volatile long lastCompileCheck = -1L;
     private volatile long lastJspQueueUpdate = System.currentTimeMillis();
@@ -176,6 +157,11 @@ public final class JspRuntimeContext {
      * so a web application scoped Map is required.
      */
     private final Map<String,SmapStratum> smaps = new ConcurrentHashMap<>();
+
+    /**
+     * Flag that indicates if a background compilation check is in progress.
+     */
+    private volatile boolean compileCheckInProgress = false;
 
 
     // ------------------------------------------------------ Public Methods
@@ -224,8 +210,8 @@ public final class JspRuntimeContext {
         FastRemovalDequeue<JspServletWrapper>.Entry entry = jspQueue.push(jsw);
         JspServletWrapper replaced = entry.getReplaced();
         if (replaced != null) {
-            if (log.isDebugEnabled()) {
-                log.debug(Localizer.getMessage("jsp.message.jsp_removed_excess",
+            if (log.isTraceEnabled()) {
+                log.trace(Localizer.getMessage("jsp.message.jsp_removed_excess",
                                                replaced.getJspUri(), context.getContextPath()));
             }
             unloadJspServletWrapper(replaced);
@@ -259,32 +245,12 @@ public final class JspRuntimeContext {
     }
 
     /**
-     * Get the SecurityManager Policy CodeSource for this web
-     * application context.
-     *
-     * @return CodeSource for JSP
-     */
-    public CodeSource getCodeSource() {
-        return codeSource;
-    }
-
-    /**
      * Get the parent ClassLoader.
      *
      * @return ClassLoader parent
      */
     public ClassLoader getParentClassLoader() {
         return parentClassLoader;
-    }
-
-    /**
-     * Get the SecurityManager PermissionCollection for this
-     * web application context.
-     *
-     * @return PermissionCollection permissions
-     */
-    public PermissionCollection getPermissionCollection() {
-        return permissionCollection;
     }
 
     /**
@@ -362,25 +328,56 @@ public final class JspRuntimeContext {
             return;
         }
 
+        List<JspServletWrapper> wrappersToReload = new ArrayList<>();
+        // Tell JspServletWrapper to ignore the reload attribute while this
+        // check is in progress. See BZ 62603.
+        compileCheckInProgress = true;
+
         Object [] wrappers = jsps.values().toArray();
-        for (int i = 0; i < wrappers.length; i++ ) {
-            JspServletWrapper jsw = (JspServletWrapper)wrappers[i];
+        for (Object wrapper : wrappers) {
+            JspServletWrapper jsw = (JspServletWrapper) wrapper;
             JspCompilationContext ctxt = jsw.getJspEngineContext();
-            // JspServletWrapper also synchronizes on this when
-            // it detects it has to do a reload
-            synchronized(jsw) {
+            // Sync on JspServletWrapper when calling ctxt.compile()
+            synchronized (jsw) {
                 try {
                     ctxt.compile();
+                    if (jsw.getReload()) {
+                        wrappersToReload.add(jsw);
+                    }
                 } catch (FileNotFoundException ex) {
                     ctxt.incrementRemoved();
                 } catch (Throwable t) {
                     ExceptionUtils.handleThrowable(t);
-                    jsw.getServletContext().log("Background compile failed",
-                                                t);
+                    jsw.getServletContext().log(Localizer.getMessage("jsp.error.backgroundCompilationFailed"), t);
                 }
             }
         }
 
+        // See BZ 62603.
+        // OK to process reload flag now.
+        compileCheckInProgress = false;
+        // Ensure all servlets and tags that need to be reloaded, are reloaded.
+        for (JspServletWrapper jsw : wrappersToReload) {
+            // Triggers reload
+            try {
+                if (jsw.isTagFile()) {
+                    // Although this is a public method, all other paths to this
+                    // method use this sync and it is required to prevent race
+                    // conditions during the reload.
+                    synchronized (this) {
+                        jsw.loadTagFile();
+                    }
+                } else {
+                    jsw.getServlet();
+                }
+            } catch (ServletException e) {
+                jsw.getServletContext().log(Localizer.getMessage("jsp.error.reload"), e);
+            }
+        }
+    }
+
+    public boolean isCompileCheckInProgress() {
+        return compileCheckInProgress;
     }
 
     /**
@@ -403,6 +400,10 @@ public final class JspRuntimeContext {
     }
 
 
+    public Options getOptions() {
+        return options;
+    }
+
     // -------------------------------------------------------- Private Methods
 
     /**
@@ -416,19 +417,19 @@ public final class JspRuntimeContext {
         if (parentClassLoader instanceof URLClassLoader) {
             URL [] urls = ((URLClassLoader)parentClassLoader).getURLs();
 
-            for (int i = 0; i < urls.length; i++) {
+            for (URL url : urls) {
                 // Tomcat can use URLs other than file URLs. However, a protocol
                 // other than file: will generate a bad file system path, so
                 // only add file: protocol URLs to the classpath.
 
-                if (urls[i].getProtocol().equals("file") ) {
+                if (url.getProtocol().equals("file")) {
                     try {
                         // Need to decode the URL, primarily to convert %20
                         // sequences back to spaces
-                        String decoded = URLDecoder.decode(urls[i].getPath(), "UTF-8");
+                        String decoded = url.toURI().getPath();
                         cpath.append(decoded + File.pathSeparator);
-                    } catch (UnsupportedEncodingException e) {
-                        // All JREs are required to support UTF-8
+                    } catch (URISyntaxException e) {
+                        log.warn(Localizer.getMessage("jsp.warning.classpathUrl"), e);
                     }
                 }
             }
@@ -436,94 +437,19 @@ public final class JspRuntimeContext {
 
         cpath.append(options.getScratchDir() + File.pathSeparator);
 
-        String cp = (String) context.getAttribute(Constants.SERVLET_CLASSPATH);
+        String cp = (String) context.getAttribute(options.getServletClasspathAttribute());
         if (cp == null || cp.equals("")) {
             cp = options.getClassPath();
         }
 
         String path = cpath.toString() + cp;
 
-        if(log.isDebugEnabled()) {
-            log.debug("Compilation classpath initialized: " + path);
+        if(log.isTraceEnabled()) {
+            log.trace("Compilation classpath initialized: " + path);
         }
         return path;
     }
 
-    /**
-     * Helper class to allow initSecurity() to return two items
-     */
-    private static class SecurityHolder{
-        private final CodeSource cs;
-        private final PermissionCollection pc;
-        private SecurityHolder(CodeSource cs, PermissionCollection pc){
-            this.cs = cs;
-            this.pc = pc;
-        }
-    }
-    /**
-     * Method used to initialize SecurityManager data.
-     */
-    private SecurityHolder initSecurity() {
-
-        // Setup the PermissionCollection for this web app context
-        // based on the permissions configured for the root of the
-        // web app context directory, then add a file read permission
-        // for that directory.
-        Policy policy = Policy.getPolicy();
-        CodeSource source = null;
-        PermissionCollection permissions = null;
-        if( policy != null ) {
-            try {
-                // Get the permissions for the web app context
-                String docBase = context.getRealPath("/");
-                if( docBase == null ) {
-                    docBase = options.getScratchDir().toString();
-                }
-                String codeBase = docBase;
-                if (!codeBase.endsWith(File.separator)){
-                    codeBase = codeBase + File.separator;
-                }
-                File contextDir = new File(codeBase);
-                URL url = contextDir.getCanonicalFile().toURI().toURL();
-                source = new CodeSource(url,(Certificate[])null);
-                permissions = policy.getPermissions(source);
-
-                // Create a file read permission for web app context directory
-                if (!docBase.endsWith(File.separator)){
-                    permissions.add
-                        (new FilePermission(docBase,"read"));
-                    docBase = docBase + File.separator;
-                } else {
-                    permissions.add
-                        (new FilePermission
-                            (docBase.substring(0,docBase.length() - 1),"read"));
-                }
-                docBase = docBase + "-";
-                permissions.add(new FilePermission(docBase,"read"));
-
-                // Spec says apps should have read/write for their temp
-                // directory. This is fine, as no security sensitive files, at
-                // least any that the app doesn't have full control of anyway,
-                // will be written here.
-                String workDir = options.getScratchDir().toString();
-                if (!workDir.endsWith(File.separator)){
-                    permissions.add
-                        (new FilePermission(workDir,"read,write"));
-                    workDir = workDir + File.separator;
-                }
-                workDir = workDir + "-";
-                permissions.add(new FilePermission(
-                        workDir,"read,write,delete"));
-
-                // Allow the JSP to access org.apache.jasper.runtime.HttpJspBase
-                permissions.add( new RuntimePermission(
-                    "accessClassInPackage.org.apache.jasper.runtime") );
-            } catch(RuntimeException | IOException e) {
-                context.log("Security Init for context failed",e);
-            }
-        }
-        return new SecurityHolder(source, permissions);
-    }
 
     private void unloadJspServletWrapper(JspServletWrapper jsw) {
         removeWrapper(jsw.getJspUri());
@@ -551,14 +477,14 @@ public final class JspRuntimeContext {
         if (jspIdleTimeout > 0) {
             long unloadBefore = now - jspIdleTimeout;
             Object [] wrappers = jsps.values().toArray();
-            for (int i = 0; i < wrappers.length; i++ ) {
-                JspServletWrapper jsw = (JspServletWrapper)wrappers[i];
-                synchronized(jsw) {
+            for (Object wrapper : wrappers) {
+                JspServletWrapper jsw = (JspServletWrapper) wrapper;
+                synchronized (jsw) {
                     if (jsw.getLastUsageTime() < unloadBefore) {
-                        if (log.isDebugEnabled()) {
-                            log.debug(Localizer.getMessage("jsp.message.jsp_removed_idle",
-                                                           jsw.getJspUri(), context.getContextPath(),
-                                                           "" + (now-jsw.getLastUsageTime())));
+                        if (log.isTraceEnabled()) {
+                            log.trace(Localizer.getMessage("jsp.message.jsp_removed_idle",
+                                    jsw.getJspUri(), context.getContextPath(),
+                                    "" + (now - jsw.getLastUsageTime())));
                         }
                         if (jspQueue != null) {
                             jspQueue.remove(jsw.getUnloadHandle());

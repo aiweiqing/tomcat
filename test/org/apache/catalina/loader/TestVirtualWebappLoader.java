@@ -37,6 +37,35 @@ public class TestVirtualWebappLoader extends TomcatBaseTest {
     }
 
     @Test
+    public void testLoaderInstance() throws Exception {
+        WebappLoader loader = new WebappLoader();
+        Assert.assertNull(loader.getClassLoader());
+        WebappClassLoader cl = new WebappClassLoader();
+        loader.setLoaderInstance(cl);
+        Assert.assertSame(cl, loader.getClassLoader());
+        Assert.assertEquals(WebappClassLoader.class.getName(), loader.getLoaderClass());
+
+        Tomcat tomcat = getTomcatInstance();
+
+        File appDir = new File("test/webapp");
+        StandardContext ctx = (StandardContext) tomcat.addContext("",
+                appDir.getAbsolutePath());
+
+        loader.setContext(ctx);
+        ctx.setLoader(loader);
+
+        ctx.setResources(new StandardRoot(ctx));
+        ctx.resourcesStart();
+
+        loader.start();
+        Assert.assertSame(cl, loader.getClassLoader());
+        Assert.assertEquals(WebappClassLoader.class.getName(), loader.getLoaderClass());
+        loader.stop();
+        Assert.assertNull(loader.getClassLoader());
+        Assert.assertEquals(WebappClassLoader.class.getName(), loader.getLoaderClass());
+    }
+
+    @Test
     public void testStartInternal() throws Exception {
         Tomcat tomcat = getTomcatInstance();
 
@@ -60,7 +89,7 @@ public class TestVirtualWebappLoader extends TomcatBaseTest {
 
         loader.start();
         String[] repos = loader.getLoaderRepositories();
-        Assert.assertEquals(4,repos.length);
+        Assert.assertEquals(5,repos.length);
         loader.stop();
 
         repos = loader.getLoaderRepositories();
@@ -69,7 +98,7 @@ public class TestVirtualWebappLoader extends TomcatBaseTest {
         // no leak
         loader.start();
         repos = loader.getLoaderRepositories();
-        Assert.assertEquals(4,repos.length);
+        Assert.assertEquals(5,repos.length);
 
         // clear loader
         ctx.setLoader(null);

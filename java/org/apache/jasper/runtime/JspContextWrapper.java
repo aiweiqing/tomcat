@@ -28,30 +28,28 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import javax.el.ELContext;
-import javax.el.ELResolver;
-import javax.el.EvaluationListener;
-import javax.el.FunctionMapper;
-import javax.el.ImportHandler;
-import javax.el.VariableMapper;
-import javax.servlet.Servlet;
-import javax.servlet.ServletConfig;
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpSession;
-import javax.servlet.jsp.JspApplicationContext;
-import javax.servlet.jsp.JspContext;
-import javax.servlet.jsp.JspFactory;
-import javax.servlet.jsp.JspWriter;
-import javax.servlet.jsp.PageContext;
-import javax.servlet.jsp.el.ELException;
-import javax.servlet.jsp.el.ExpressionEvaluator;
-import javax.servlet.jsp.el.VariableResolver;
-import javax.servlet.jsp.tagext.BodyContent;
-import javax.servlet.jsp.tagext.JspTag;
-import javax.servlet.jsp.tagext.VariableInfo;
+import jakarta.el.ELContext;
+import jakarta.el.ELResolver;
+import jakarta.el.EvaluationListener;
+import jakarta.el.FunctionMapper;
+import jakarta.el.ImportHandler;
+import jakarta.el.VariableMapper;
+import jakarta.servlet.Servlet;
+import jakarta.servlet.ServletConfig;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.jsp.JspApplicationContext;
+import jakarta.servlet.jsp.JspContext;
+import jakarta.servlet.jsp.JspFactory;
+import jakarta.servlet.jsp.JspWriter;
+import jakarta.servlet.jsp.PageContext;
+import jakarta.servlet.jsp.el.NotFoundELResolver;
+import jakarta.servlet.jsp.tagext.BodyContent;
+import jakarta.servlet.jsp.tagext.JspTag;
+import jakarta.servlet.jsp.tagext.VariableInfo;
 
 import org.apache.jasper.compiler.Localizer;
 
@@ -67,8 +65,7 @@ import org.apache.jasper.compiler.Localizer;
  * @author Jan Luehe
  * @author Jacob Hookom
  */
-@SuppressWarnings("deprecation") // Have to support old JSP EL API
-public class JspContextWrapper extends PageContext implements VariableResolver {
+public class JspContextWrapper extends PageContext{
 
     private final JspTag jspTag;
 
@@ -103,8 +100,7 @@ public class JspContextWrapper extends PageContext implements VariableResolver {
         this.invokingJspCtxt = (PageContext) jspContext;
         if (jspContext instanceof JspContextWrapper) {
             rootJspCtxt = ((JspContextWrapper)jspContext).rootJspCtxt;
-        }
-        else {
+        } else {
             rootJspCtxt = invokingJspCtxt;
         }
         this.nestedVars = nestedVars;
@@ -201,7 +197,12 @@ public class JspContextWrapper extends PageContext implements VariableResolver {
             o = rootJspCtxt.getAttribute(name, REQUEST_SCOPE);
             if (o == null) {
                 if (getSession() != null) {
-                    o = rootJspCtxt.getAttribute(name, SESSION_SCOPE);
+                    try {
+                        o = rootJspCtxt.getAttribute(name, SESSION_SCOPE);
+                    } catch (IllegalStateException ise) {
+                        // Session has been invalidated.
+                        // Ignore and fall through to application scope.
+                    }
                 }
                 if (o == null) {
                     o = rootJspCtxt.getAttribute(name, APPLICATION_SCOPE);
@@ -334,12 +335,6 @@ public class JspContextWrapper extends PageContext implements VariableResolver {
     }
 
     @Override
-    @Deprecated
-    public VariableResolver getVariableResolver() {
-        return this;
-    }
-
-    @Override
     public BodyContent pushBody() {
         return invokingJspCtxt.pushBody();
     }
@@ -355,12 +350,6 @@ public class JspContextWrapper extends PageContext implements VariableResolver {
     }
 
     @Override
-    @Deprecated
-    public ExpressionEvaluator getExpressionEvaluator() {
-        return invokingJspCtxt.getExpressionEvaluator();
-    }
-
-    @Override
     public void handlePageException(Exception ex) throws IOException,
             ServletException {
         // Should never be called since handleException() called with a
@@ -372,16 +361,6 @@ public class JspContextWrapper extends PageContext implements VariableResolver {
     public void handlePageException(Throwable t) throws IOException,
             ServletException {
         invokingJspCtxt.handlePageException(t);
-    }
-
-    /**
-     * VariableResolver interface
-     */
-    @Override
-    @Deprecated
-    public Object resolveVariable(String pName) throws ELException {
-        ELContext ctx = this.getELContext();
-        return ctx.getELResolver().getValue(ctx, null, pName);
     }
 
     /**
@@ -492,8 +471,9 @@ public class JspContextWrapper extends PageContext implements VariableResolver {
      */
     private String findAlias(String varName) {
 
-        if (aliases == null)
+        if (aliases == null) {
             return varName;
+        }
 
         String alias = aliases.get(varName);
         if (alias == null) {
@@ -549,14 +529,24 @@ public class JspContextWrapper extends PageContext implements VariableResolver {
         }
 
         @Override
-        public void putContext(@SuppressWarnings("rawtypes") Class key, Object contextObject) {
-            wrapped.putContext(key, contextObject);
+        public void putContext(Class<?> key, Object contextObject) {
+            if (key != JspContext.class) {
+                wrapped.putContext(key, contextObject);
+            }
         }
 
         @Override
-        public Object getContext(@SuppressWarnings("rawtypes") Class key) {
+        public Object getContext(Class<?> key) {
             if (key == JspContext.class) {
                 return pageContext;
+            }
+            if (key == NotFoundELResolver.class) {
+                if (jspTag instanceof JspSourceDirectives) {
+                    return Boolean.valueOf(((JspSourceDirectives) jspTag).getErrorOnELNotFound());
+                } else {
+                    // returning Boolean.FALSE would have the same effect
+                    return null;
+                }
             }
             return wrapped.getContext(key);
         }
@@ -640,7 +630,7 @@ public class JspContextWrapper extends PageContext implements VariableResolver {
         }
 
         @Override
-        public Object convertToType(Object obj, Class<?> type) {
+        public <T> T convertToType(Object obj, Class<T> type) {
             return wrapped.convertToType(obj, type);
         }
 

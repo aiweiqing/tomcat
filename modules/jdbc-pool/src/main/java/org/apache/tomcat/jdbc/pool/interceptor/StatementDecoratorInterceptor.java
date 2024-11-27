@@ -14,8 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
 package org.apache.tomcat.jdbc.pool.interceptor;
 
 import java.lang.reflect.Constructor;
@@ -56,6 +54,13 @@ public class StatementDecoratorInterceptor extends AbstractCreateStatementInterc
         // nothing to do
     }
 
+    /*
+     * Neither the class nor the constructor are exposed outside of jdbc-pool.
+     * Given the comments in the jdbc-pool code regarding caching for
+     * performance, continue to use Proxy.getProxyClass(). This will need to be
+     * revisited if that method is marked for removal.
+     */
+    @SuppressWarnings("deprecation")
     protected Constructor<?> getResultSetConstructor() throws NoSuchMethodException {
         if (resultSetConstructor == null) {
             Class<?> proxyClass = Proxy.getProxyClass(StatementDecoratorInterceptor.class.getClassLoader(),
@@ -94,9 +99,6 @@ public class StatementDecoratorInterceptor extends AbstractCreateStatementInterc
         } catch (Exception x) {
             if (x instanceof InvocationTargetException) {
                 Throwable cause = x.getCause();
-                if (cause instanceof ThreadDeath) {
-                    throw (ThreadDeath) cause;
-                }
                 if (cause instanceof VirtualMachineError) {
                     throw (VirtualMachineError) cause;
                 }
@@ -151,7 +153,7 @@ public class StatementDecoratorInterceptor extends AbstractCreateStatementInterc
     /**
      * Class to measure query execute time.
      */
-    protected class StatementProxy<T extends java.sql.Statement> implements InvocationHandler {
+    protected class StatementProxy<T extends Statement> implements InvocationHandler {
 
         protected boolean closed = false;
         protected T delegate;
@@ -212,14 +214,17 @@ public class StatementDecoratorInterceptor extends AbstractCreateStatementInterc
             // was close invoked?
             boolean close = compare(CLOSE_VAL, method);
             // allow close to be called multiple times
-            if (close && closed)
-                return null;
+            if (close && closed) {
+              return null;
+            }
             // are we calling isClosed?
-            if (compare(ISCLOSED_VAL, method))
-                return Boolean.valueOf(closed);
+            if (compare(ISCLOSED_VAL, method)) {
+              return Boolean.valueOf(closed);
+            }
             // if we are calling anything else, bail out
-            if (closed)
-                throw new SQLException("Statement closed.");
+            if (closed) {
+              throw new SQLException("Statement closed.");
+            }
             if (compare(GETCONNECTION_VAL,method)){
                 return connection;
             }
@@ -262,7 +267,7 @@ public class StatementDecoratorInterceptor extends AbstractCreateStatementInterc
             buf.append(getDelegate());
             buf.append("; Connection=");
             buf.append(getConnection());
-            buf.append("]");
+            buf.append(']');
             return buf.toString();
         }
     }

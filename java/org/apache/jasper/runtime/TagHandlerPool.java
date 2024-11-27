@@ -14,14 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.jasper.runtime;
 
-import javax.servlet.ServletConfig;
-import javax.servlet.jsp.JspException;
-import javax.servlet.jsp.tagext.Tag;
+import jakarta.servlet.ServletConfig;
+import jakarta.servlet.jsp.JspException;
+import jakarta.servlet.jsp.tagext.Tag;
 
 import org.apache.jasper.Constants;
+import org.apache.jasper.compiler.Localizer;
+import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.InstanceManager;
 
 /**
@@ -35,10 +36,12 @@ public class TagHandlerPool {
 
     public static final String OPTION_TAGPOOL = "tagpoolClassName";
     public static final String OPTION_MAXSIZE = "tagpoolMaxSize";
+    public static final String OPTION_USEIMFORTAGS = "useInstanceManagerForTags";
 
     // index of next available tag handler
     private int current;
     protected InstanceManager instanceManager = null;
+    protected boolean useInstanceManagerForTags;
 
     public static TagHandlerPool getTagHandlerPool(ServletConfig config) {
         TagHandlerPool result = null;
@@ -49,12 +52,13 @@ public class TagHandlerPool {
                 Class<?> c = Class.forName(tpClassName);
                 result = (TagHandlerPool) c.getConstructor().newInstance();
             } catch (Exception e) {
-                e.printStackTrace();
+                LogFactory.getLog(TagHandlerPool.class).info(Localizer.getMessage("jsp.error.tagHandlerPool"), e);
                 result = null;
             }
         }
-        if (result == null)
+        if (result == null) {
             result = new TagHandlerPool();
+        }
         result.init(config);
 
         return result;
@@ -73,6 +77,8 @@ public class TagHandlerPool {
         if (maxSize < 0) {
             maxSize = Constants.MAX_POOL_SIZE;
         }
+        String useInstanceManagerForTagsValue = getOption(config, OPTION_USEIMFORTAGS, "false");
+        useInstanceManagerForTags = Boolean.valueOf(useInstanceManagerForTagsValue).booleanValue();
         this.handlers = new Tag[maxSize];
         this.current = -1;
         instanceManager = InstanceManagerFactory.getInstanceManager(config);
@@ -108,7 +114,7 @@ public class TagHandlerPool {
         // Out of sync block - there is no need for other threads to
         // wait for us to construct a tag for this thread.
         try {
-            if (Constants.USE_INSTANCE_MANAGER_FOR_TAGS) {
+            if (useInstanceManagerForTags) {
                 return (Tag) instanceManager.newInstance(
                         handlerClass.getName(), handlerClass.getClassLoader());
             } else {
@@ -155,17 +161,21 @@ public class TagHandlerPool {
 
     protected static String getOption(ServletConfig config, String name,
             String defaultV) {
-        if (config == null)
+        if (config == null) {
             return defaultV;
+        }
 
         String value = config.getInitParameter(name);
-        if (value != null)
+        if (value != null) {
             return value;
-        if (config.getServletContext() == null)
+        }
+        if (config.getServletContext() == null) {
             return defaultV;
+        }
         value = config.getServletContext().getInitParameter(name);
-        if (value != null)
+        if (value != null) {
             return value;
+        }
         return defaultV;
     }
 

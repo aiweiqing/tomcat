@@ -31,6 +31,8 @@ public class TestFileHandlerNonRotatable extends LoggingBaseTest {
 
     @BeforeClass
     public static void setUpPerTestClass() throws Exception {
+        LoggingBaseTest.setUpPerTestClass();
+
         System.setProperty("java.util.logging.manager",
                 "org.apache.juli.ClassLoaderLogManager");
         String configLoggingPath = TestFileHandlerNonRotatable.class
@@ -53,6 +55,7 @@ public class TestFileHandlerNonRotatable extends LoggingBaseTest {
     public void testBug61232() throws Exception {
         testHandler = new FileHandler(this.getTemporaryDirectory().toString(),
                 "juli.", ".log");
+        testHandler.open();
 
         File logFile = new File(this.getTemporaryDirectory(), "juli.log");
         Assert.assertTrue(logFile.exists());
@@ -62,6 +65,7 @@ public class TestFileHandlerNonRotatable extends LoggingBaseTest {
     public void testCustomSuffixWithoutSeparator() throws Exception {
         testHandler = new FileHandler(this.getTemporaryDirectory().toString(),
                 "juli.", "log");
+        testHandler.open();
 
         File logFile = new File(this.getTemporaryDirectory(), "juli.log");
         Assert.assertTrue(logFile.exists());
@@ -71,6 +75,7 @@ public class TestFileHandlerNonRotatable extends LoggingBaseTest {
     public void testCustomPrefixWithoutSeparator() throws Exception {
         testHandler = new FileHandler(this.getTemporaryDirectory().toString(),
                 "juli", ".log");
+        testHandler.open();
 
         File logFile = new File(this.getTemporaryDirectory(), "juli.log");
         Assert.assertTrue(logFile.exists());

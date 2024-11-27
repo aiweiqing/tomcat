@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.catalina.storeconfig;
 
 import java.util.HashMap;
@@ -44,14 +43,16 @@ import org.apache.coyote.UpgradeProtocol;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.util.http.CookieProcessor;
+import org.apache.tomcat.util.res.StringManager;
 
 /**
  * Central StoreRegistry for all server.xml elements
  */
 public class StoreRegistry {
     private static Log log = LogFactory.getLog(StoreRegistry.class);
+    private static StringManager sm = StringManager.getManager(StoreRegistry.class);
 
-    private Map<String, StoreDescription> descriptors = new HashMap<>();
+    private Map<String,StoreDescription> descriptors = new HashMap<>();
 
     private String encoding = "UTF-8";
 
@@ -60,64 +61,58 @@ public class StoreRegistry {
     private String version;
 
     // Access Information
-    private static Class<?> interfaces[] = { CatalinaCluster.class,
-            ChannelSender.class, ChannelReceiver.class, Channel.class,
-            MembershipService.class, ClusterDeployer.class, Realm.class,
-            Manager.class, DirContext.class, LifecycleListener.class,
-            Valve.class, ClusterListener.class, MessageListener.class,
-            DataSender.class, ChannelInterceptor.class, Member.class,
-            WebResourceRoot.class, WebResourceSet.class,
-            CredentialHandler.class, UpgradeProtocol.class,
-            CookieProcessor.class };
+    private static Class<?> interfaces[] = { CatalinaCluster.class, ChannelSender.class, ChannelReceiver.class,
+            Channel.class, MembershipService.class, ClusterDeployer.class, Realm.class, Manager.class, DirContext.class,
+            LifecycleListener.class, Valve.class, ClusterListener.class, MessageListener.class, DataSender.class,
+            ChannelInterceptor.class, Member.class, WebResourceRoot.class, WebResourceSet.class,
+            CredentialHandler.class, UpgradeProtocol.class, CookieProcessor.class };
 
     /**
-     * @return Returns the name.
+     * @return the name
      */
     public String getName() {
         return name;
     }
 
     /**
-     * @param name
-     *            The name to set.
+     * @param name The name to set.
      */
     public void setName(String name) {
         this.name = name;
     }
 
     /**
-     * @return Returns the version.
+     * @return the version
      */
     public String getVersion() {
         return version;
     }
 
     /**
-     * @param version
-     *            The version to set.
+     * @param version The version to set
      */
     public void setVersion(String version) {
         this.version = version;
     }
 
     /**
-     * Find a description for id. Handle interface search when no direct match
-     * found.
+     * Find a description for id. Handle interface search when no direct match found.
      *
      * @param id The class name
-     * @return The description
+     *
+     * @return the description
      */
     public StoreDescription findDescription(String id) {
-        if (log.isDebugEnabled())
-            log.debug("search descriptor " + id);
+        if (log.isTraceEnabled()) {
+            log.trace("search descriptor " + id);
+        }
         StoreDescription desc = descriptors.get(id);
         if (desc == null) {
             Class<?> aClass = null;
             try {
-                aClass = Class.forName(id, true, this.getClass()
-                        .getClassLoader());
+                aClass = Class.forName(id, true, this.getClass().getClassLoader());
             } catch (ClassNotFoundException e) {
-                log.error("ClassName:" + id, e);
+                log.error(sm.getString("registry.loadClassFailed", id), e);
             }
             if (aClass != null) {
                 desc = descriptors.get(aClass.getName());
@@ -128,12 +123,13 @@ public class StoreRegistry {
                 }
             }
         }
-        if (log.isDebugEnabled())
-            if (desc != null)
-                log.debug("find descriptor " + id + "#" + desc.getTag() + "#"
-                        + desc.getStoreFactoryClass());
-            else
-                log.debug(("Can't find descriptor for key " + id));
+        if (log.isDebugEnabled()) {
+            if (desc != null) {
+                log.trace("find descriptor " + id + "#" + desc.getTag() + "#" + desc.getStoreFactoryClass());
+            } else {
+                log.debug(sm.getString("registry.noDescriptor", id));
+            }
+        }
         return desc;
     }
 
@@ -141,7 +137,8 @@ public class StoreRegistry {
      * Find Description by class.
      *
      * @param aClass The class
-     * @return The description
+     *
+     * @return the description
      */
     public StoreDescription findDescription(Class<?> aClass) {
         return findDescription(aClass.getName());
@@ -151,14 +148,16 @@ public class StoreRegistry {
      * Find factory from class name.
      *
      * @param aClassName The class name
-     * @return The factory
+     *
+     * @return the factory
      */
     public IStoreFactory findStoreFactory(String aClassName) {
         StoreDescription desc = findDescription(aClassName);
-        if (desc != null)
+        if (desc != null) {
             return desc.getStoreFactory();
-        else
+        } else {
             return null;
+        }
 
     }
 
@@ -166,7 +165,8 @@ public class StoreRegistry {
      * Find factory from class.
      *
      * @param aClass The class
-     * @return The factory
+     *
+     * @return the factory
      */
     public IStoreFactory findStoreFactory(Class<?> aClass) {
         return findStoreFactory(aClass.getName());
@@ -179,31 +179,34 @@ public class StoreRegistry {
      */
     public void registerDescription(StoreDescription desc) {
         String key = desc.getId();
-        if (key == null || "".equals(key))
+        if (key == null || key.isEmpty()) {
             key = desc.getTagClass();
+        }
         descriptors.put(key, desc);
-        if (log.isDebugEnabled())
-            log.debug("register store descriptor " + key + "#" + desc.getTag()
-                    + "#" + desc.getTagClass());
+        if (log.isTraceEnabled()) {
+            log.trace("register store descriptor " + key + "#" + desc.getTag() + "#" + desc.getTagClass());
+        }
     }
 
     /**
      * Unregister a description.
      *
      * @param desc The description
+     *
      * @return the description, or <code>null</code> if it was not registered
      */
     public StoreDescription unregisterDescription(StoreDescription desc) {
         String key = desc.getId();
-        if (key == null || "".equals(key))
+        if (key == null || "".equals(key)) {
             key = desc.getTagClass();
+        }
         return descriptors.remove(key);
     }
 
     // Attributes
 
     /**
-     * @return The encoding
+     * @return the encoding
      */
     public String getEncoding() {
         return encoding;
@@ -211,6 +214,7 @@ public class StoreRegistry {
 
     /**
      * Set the encoding to use when writing the configuration files.
+     *
      * @param string The encoding
      */
     public void setEncoding(String string) {

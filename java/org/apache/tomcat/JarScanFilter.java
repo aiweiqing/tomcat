@@ -19,7 +19,6 @@ package org.apache.tomcat;
 public interface JarScanFilter {
 
     /**
-     *
      * @param jarScanType   The type of JAR scan currently being performed
      * @param jarName       The name of the JAR file (without any path
      *                          information) to be checked to see if it should
@@ -28,4 +27,12 @@ public interface JarScanFilter {
      *             <code>false</code> if it should be excluded
      */
     boolean check(JarScanType jarScanType, String jarName);
+
+    /**
+     * @return <code>true</code> if all of the scans should be skipped which
+     * can improve startup performance. The default is <code>false</code>.
+     */
+    default boolean isSkipAll() {
+        return false;
+    }
 }

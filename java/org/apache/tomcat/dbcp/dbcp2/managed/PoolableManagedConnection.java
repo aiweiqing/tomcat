@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.tomcat.dbcp.dbcp2.managed;
 
 import java.sql.Connection;
@@ -45,7 +44,7 @@ public class PoolableManagedConnection extends PoolableConnection {
      */
     public PoolableManagedConnection(final TransactionRegistry transactionRegistry, final Connection conn,
             final ObjectPool<PoolableConnection> pool) {
-        this(transactionRegistry, conn, pool, null, false);
+        this(transactionRegistry, conn, pool, null, true);
     }
 
     /**
@@ -68,6 +67,14 @@ public class PoolableManagedConnection extends PoolableConnection {
             final boolean fastFailValidation) {
         super(conn, pool, null, disconnectSqlCodes, fastFailValidation);
         this.transactionRegistry = transactionRegistry;
+    }
+
+    /**
+     * @return The transaction registry.
+     * @since 2.6.0
+     */
+    public TransactionRegistry getTransactionRegistry() {
+        return transactionRegistry;
     }
 
     /**

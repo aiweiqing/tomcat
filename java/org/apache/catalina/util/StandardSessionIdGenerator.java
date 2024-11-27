@@ -32,19 +32,19 @@ public class StandardSessionIdGenerator extends SessionIdGeneratorBase {
 
         while (resultLenBytes < sessionIdLength) {
             getRandomBytes(random);
-            for (int j = 0;
-            j < random.length && resultLenBytes < sessionIdLength;
-            j++) {
+            for (int j = 0; j < random.length && resultLenBytes < sessionIdLength; j++) {
                 byte b1 = (byte) ((random[j] & 0xf0) >> 4);
                 byte b2 = (byte) (random[j] & 0x0f);
-                if (b1 < 10)
+                if (b1 < 10) {
                     buffer.append((char) ('0' + b1));
-                else
+                } else {
                     buffer.append((char) ('A' + (b1 - 10)));
-                if (b2 < 10)
+                }
+                if (b2 < 10) {
                     buffer.append((char) ('0' + b2));
-                else
+                } else {
                     buffer.append((char) ('A' + (b2 - 10)));
+                }
                 resultLenBytes++;
             }
         }

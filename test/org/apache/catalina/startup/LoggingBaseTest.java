@@ -51,11 +51,15 @@ import org.apache.juli.logging.LogFactory;
  */
 public abstract class LoggingBaseTest {
 
+    private static List<File> deleteOnClassTearDown = new ArrayList<>();
+
     protected Log log;
 
-    private File tempDir;
+    private static File tempDir;
 
     private List<File> deleteOnTearDown = new ArrayList<>();
+
+    protected boolean ignoreTearDown = false;
 
     /**
      * Provides name of the currently executing test method.
@@ -102,17 +106,6 @@ public abstract class LoggingBaseTest {
 
     @BeforeClass
     public static void setUpPerTestClass() throws Exception {
-        // Configure logging
-        System.setProperty("java.util.logging.manager",
-                "org.apache.juli.ClassLoaderLogManager");
-        System.setProperty("java.util.logging.config.file",
-                new File(System.getProperty("tomcat.test.basedir"),
-                        "conf/logging.properties").toString());
-
-    }
-
-    @Before
-    public void setUp() throws Exception {
         // Create catalina.base directory
         File tempBase = new File(System.getProperty("tomcat.test.temp", "output/tmp"));
         if (!tempBase.mkdirs() && !tempBase.isDirectory()) {
@@ -121,20 +114,38 @@ public abstract class LoggingBaseTest {
         Path tempBasePath = FileSystems.getDefault().getPath(tempBase.getAbsolutePath());
         tempDir = Files.createTempDirectory(tempBasePath, "test").toFile();
 
-        System.setProperty("catalina.base", tempDir.getAbsolutePath());
+        System.setProperty(Constants.CATALINA_BASE_PROP, tempDir.getAbsolutePath());
 
+        // Configure logging
+        System.setProperty("java.util.logging.manager",
+                "org.apache.juli.ClassLoaderLogManager");
+        System.setProperty("java.util.logging.config.file",
+                new File(System.getProperty("tomcat.test.basedir"),
+                        "conf/logging.properties").toString());
+
+        // tempDir contains log files which will be open until JULI shuts down
+        deleteOnClassTearDown.add(tempDir);
+    }
+
+    @Before
+    public void setUp() throws Exception {
         log = LogFactory.getLog(getClass());
         log.info("Starting test case [" + testName.getMethodName() + "]");
     }
 
     @After
     public void tearDown() throws Exception {
+        boolean deleted = true;
         for (File file : deleteOnTearDown) {
-            ExpandWar.delete(file);
+            boolean result = ExpandWar.delete(file);
+            if (!result) {
+                log.info("Failed to delete [" + file.getAbsolutePath() + "]");
+            }
+            deleted = deleted & result;
         }
         deleteOnTearDown.clear();
 
-        ExpandWar.deleteDir(tempDir);
+        Assert.assertTrue("Failed to delete at least one file", ignoreTearDown || deleted);
     }
 
     @AfterClass
@@ -145,5 +156,9 @@ public abstract class LoggingBaseTest {
         } else {
             logManager.reset();
         }
+        for (File file : deleteOnClassTearDown) {
+            ExpandWar.delete(file);
+        }
+        deleteOnClassTearDown.clear();
     }
 }
